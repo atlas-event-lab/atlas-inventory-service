@@ -1,0 +1,2 @@
+-- Inventory Service initial schema placeholder.
+-- Domain tables are introduced in Phase 2.
