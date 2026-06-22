@@ -2,6 +2,7 @@ package com.atlas.inventory.event;
 
 import com.atlas.inventory.entity.ResourceType;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /** A reserved booking item inside the booking-facing {@code InventoryReserved} payload
@@ -10,5 +11,6 @@ public record ReservedItem(
         UUID reservationId,
         ResourceType resourceType,
         UUID resourceId,
-        int quantity
+        int quantity,
+        BigDecimal amount
 ) {}

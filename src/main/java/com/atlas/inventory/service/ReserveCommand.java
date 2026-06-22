@@ -1,5 +1,6 @@
 package com.atlas.inventory.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,5 +13,6 @@ public record ReserveCommand(
         UUID bookingId,
         String correlationId,
         String sagaId,
-        List<RequestedItem> items
+        List<RequestedItem> items,
+        BigDecimal total
 ) {}

@@ -9,9 +9,9 @@ package com.atlas.inventory.shared.messaging;
 public final class EventTopics {
 
     // ── Inventory Service produces — booking-facing (saga), keyed by bookingId ──
-    public static final String INVENTORY_BOOKING_RESERVED = "inventory.booking.reserved";
-    public static final String INVENTORY_BOOKING_REJECTED = "inventory.booking.rejected";
-    public static final String INVENTORY_BOOKING_RELEASED = "inventory.booking.released";
+    public static final String INVENTORY_BOOKING_RESERVED = "inventory.reserved";
+    public static final String INVENTORY_BOOKING_REJECTED = "inventory.rejected";
+    public static final String INVENTORY_BOOKING_RELEASED = "inventory.released";
 
     // ── Inventory Service produces — resource-facing (availability), keyed by reservationId ──
     public static final String INVENTORY_FLIGHT_RESERVED = "inventory.flight.reserved";
@@ -22,11 +22,11 @@ public final class EventTopics {
     public static final String INVENTORY_HOTEL_EXPIRED   = "inventory.hotel.expired";
 
     // ── Inventory Service consumes (owned by Booking Service) ─────────────────
-    public static final String BOOKING_CREATED   = "booking.booking.created";
-    public static final String BOOKING_CONFIRMED = "booking.booking.confirmed";
-    public static final String BOOKING_CANCELLED = "booking.booking.cancelled";
-    public static final String BOOKING_FAILED    = "booking.booking.failed";
-    public static final String BOOKING_EXPIRED   = "booking.booking.expired";
+    public static final String BOOKING_CREATED   = "booking.created";
+    public static final String BOOKING_CONFIRMED = "booking.confirmed";
+    public static final String BOOKING_CANCELLED = "booking.cancelled";
+    public static final String BOOKING_FAILED    = "booking.failed";
+    public static final String BOOKING_EXPIRED   = "booking.expired";
 
     // ── Inventory Service consumes (owned by Flight Service) ──────────────────
     public static final String FLIGHT_CREATED = "flight.created";

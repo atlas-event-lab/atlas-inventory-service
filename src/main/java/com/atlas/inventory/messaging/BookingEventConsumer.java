@@ -8,6 +8,7 @@ import com.atlas.inventory.service.InventoryService;
 import com.atlas.inventory.service.RequestedItem;
 import com.atlas.inventory.service.ReserveCommand;
 import com.atlas.inventory.shared.messaging.EventTopics;
+import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -58,7 +59,9 @@ public class BookingEventConsumer {
                 extractUuid(payload, "bookingId"),
                 stringOrNull(envelope.get("correlationId")),
                 stringOrNull(envelope.get("sagaId")),
-                extractItems(payload));
+                extractItems(payload),
+                extractTotalAmount(payload)
+            );
 
         log.debug("Received BookingCreated: eventId={}, bookingId={}, items={}",
                 eventId, command.bookingId(), command.items().size());
@@ -151,6 +154,27 @@ public class BookingEventConsumer {
         return (Map<String, Object>) raw;
     }
 
+//    private BigDecimal extractTotalAmount(Map<String, Object> payload) {
+//        Object raw = payload.get("total");
+//        if (raw == null) {
+//            throw new IllegalArgumentException("Missing 'total' in BookingCreated payload");
+//        }
+//        return new BigDecimal(raw.toString());
+//    }
+
+    private BigDecimal extractTotalAmount(Map<String, Object> payload) {
+        Object raw = payload.get("total");
+        if (!(raw instanceof Map<?, ?> money)) {
+            throw new IllegalArgumentException("Missing 'total' in BookingCreated payload");
+        }
+        Object amount = money.get("amount");
+        Object currency = money.get("currency");
+        if (amount == null || currency == null) {
+            throw new IllegalArgumentException("Illegal argument on 'total' field in BookingCreated payload");
+        }
+        return new BigDecimal(amount.toString());
+    }
+
     @SuppressWarnings("unchecked")
     private List<RequestedItem> extractItems(Map<String, Object> payload) {
         Object raw = payload.get("items");
@@ -167,13 +191,16 @@ public class BookingEventConsumer {
         Object type = item.get("type");
         Object resourceId = item.get("resourceId");
         Object quantity = item.get("quantity");
+        Object amount = item.get("amount");
         if (type == null || resourceId == null) {
             throw new IllegalArgumentException("Booking item missing 'type' or 'resourceId'");
         }
         return new RequestedItem(
                 ResourceType.valueOf(type.toString()),
                 UUID.fromString(resourceId.toString()),
-                quantity == null ? 1 : ((Number) quantity).intValue());
+                quantity == null ? 1 : ((Number) quantity).intValue(),
+                new BigDecimal(amount.toString())
+        );
     }
 
     private UUID extractUuid(Map<String, Object> payload, String field) {

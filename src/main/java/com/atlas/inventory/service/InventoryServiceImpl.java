@@ -104,9 +104,13 @@ public class InventoryServiceImpl implements InventoryService {
 
         if (!failedItems.isEmpty()) {
             // All-or-nothing: nothing persisted; emit only the booking-facing rejection.
-            outboxEventWriter.write(AGGREGATE_BOOKING, command.bookingId(), InventoryEventTypes.INVENTORY_REJECTED,
-                    command.correlationId(), command.sagaId(),
-                    new InventoryRejectedPayload(command.bookingId(), failedItems));
+            outboxEventWriter.write(
+                AGGREGATE_BOOKING,
+                command.bookingId(),
+                InventoryEventTypes.INVENTORY_REJECTED,
+                command.correlationId(), command.sagaId(),
+                new InventoryRejectedPayload(command.bookingId(), failedItems)
+            );
             log.info("Inventory rejected: bookingId={}, failedItems={}", command.bookingId(), failedItems.size());
             return;
         }
@@ -128,22 +132,40 @@ public class InventoryServiceImpl implements InventoryService {
             reservationRepository.save(reservation);
             recordHistory(reservationId, ReservationStatus.RESERVED);
 
-            reservedItems.add(new ReservedItem(reservationId, item.resourceType(), item.resourceId(), item.quantity()));
+            reservedItems.add(
+                new ReservedItem(
+                    reservationId,
+                    item.resourceType(),
+                    item.resourceId(),
+                    item.quantity(),
+                    item.amount()
+            ));
 
             // Resource-facing reserved event, keyed by reservationId (partitioning.md).
-            outboxEventWriter.write(AGGREGATE_RESERVATION, reservationId,
-                    InventoryEventTypes.reserved(item.resourceType()),
-                    command.correlationId(), command.sagaId(),
-                    new ReservationDeltaPayload(reservationId, command.bookingId(),
-                            item.resourceType(), item.resourceId(), item.quantity()));
+            outboxEventWriter.write(
+                AGGREGATE_RESERVATION,
+                reservationId,
+                InventoryEventTypes.reserved(item.resourceType()),
+                command.correlationId(), command.sagaId(),
+                new ReservationDeltaPayload(
+                    reservationId,
+                    command.bookingId(),
+                    item.resourceType(),
+                    item.resourceId(),
+                    item.quantity()
+                ));
         }
 
         // Booking-facing reserved event, keyed by bookingId.
-        outboxEventWriter.write(AGGREGATE_BOOKING, command.bookingId(), InventoryEventTypes.INVENTORY_RESERVED,
-                command.correlationId(), command.sagaId(),
-                new InventoryReservedPayload(command.bookingId(), reservedItems));
+        outboxEventWriter.write(
+            AGGREGATE_BOOKING,
+            command.bookingId(),
+            InventoryEventTypes.INVENTORY_RESERVED,
+            command.correlationId(), command.sagaId(),
+            new InventoryReservedPayload(command.bookingId(), command.total(), reservedItems));
 
-        log.info("Inventory reserved: bookingId={}, items={}", command.bookingId(), reservedItems.size());
+        log.info("Inventory reserved: bookingId={}, items={}", command.bookingId(),
+            reservedItems.size());
     }
 
     // -------------------------------------------------------------------------
