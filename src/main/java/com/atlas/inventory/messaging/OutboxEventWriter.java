@@ -3,6 +3,7 @@ package com.atlas.inventory.messaging;
 import com.atlas.inventory.entity.OutboxEvent;
 import com.atlas.inventory.repository.OutboxRepository;
 import com.atlas.inventory.shared.messaging.EventEnvelope;
+import com.atlas.inventory.shared.messaging.EventType;
 import com.atlas.inventory.shared.web.CorrelationIdFilter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,16 +42,16 @@ public class OutboxEventWriter {
      * @param aggregateType descriptive aggregate name ({@code Booking} for booking-facing events,
      *                      {@code Reservation} for resource-facing events)
      * @param aggregateId   the Kafka partition key (bookingId or reservationId, partitioning.md)
-     * @param eventType     event name, e.g. {@code InventoryReserved} / {@code FlightSeatsReserved}
+     * @param eventType     produced event type, e.g. {@code INVENTORY_RESERVED} / {@code FLIGHT_SEATS_RESERVED}
      * @param correlationId correlation id propagated through the saga (OBS-002)
      * @param sagaId        saga instance id (OBS-003)
      * @param payload       the business payload (never null, never carries metadata)
      */
-    public void write(String aggregateType, UUID aggregateId, String eventType,
+    public void write(String aggregateType, UUID aggregateId, EventType eventType,
                       String correlationId, String sagaId, Object payload) {
         var envelope = new EventEnvelope<>(
                 UUID.randomUUID(),
-                eventType,
+                eventType.name(),
                 EVENT_VERSION,
                 Instant.now(),
                 resolveTraceId(),

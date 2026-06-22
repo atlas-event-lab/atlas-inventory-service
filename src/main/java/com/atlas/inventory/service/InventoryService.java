@@ -1,5 +1,6 @@
 package com.atlas.inventory.service;
 
+import com.atlas.inventory.shared.messaging.ConsumerEventType;
 import java.util.UUID;
 
 /**
@@ -22,7 +23,7 @@ public interface InventoryService {
      *
      * @param triggerEventType the consumed event name, recorded for idempotency diagnostics.
      */
-    void release(UUID eventId, UUID bookingId, String triggerEventType, String correlationId, String sagaId);
+    void release(UUID eventId, UUID bookingId, ConsumerEventType triggerEventType, String correlationId, String sagaId);
 
     /**
      * {@code BookingExpired}: RESERVED → EXPIRED, restore availability, emit {@code InventoryReleased}

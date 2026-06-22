@@ -1,13 +1,20 @@
 package com.atlas.inventory.messaging;
 
 import com.atlas.inventory.entity.ResourceType;
+import com.atlas.inventory.event.BookingLifecyclePayload;
+import com.atlas.inventory.event.EventValidator;
 import com.atlas.inventory.exception.InvalidReservationStateTransitionException;
 import com.atlas.inventory.exception.InventoryNotFoundException;
 import com.atlas.inventory.exception.ReservationNotFoundException;
+import com.atlas.inventory.event.BookingCreatedPayload;
+import com.atlas.inventory.event.BookingItemEvent;
 import com.atlas.inventory.service.InventoryService;
 import com.atlas.inventory.service.RequestedItem;
 import com.atlas.inventory.service.ReserveCommand;
+import com.atlas.inventory.shared.messaging.ConsumerEventType;
+import com.atlas.inventory.shared.messaging.EventEnvelope;
 import com.atlas.inventory.shared.messaging.EventTopics;
+import jakarta.validation.ConstraintViolationException;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,181 +44,150 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BookingEventConsumer {
 
-    private static final long RETRY_DELAY_MS = 5_000L;
-    private static final double RETRY_MULTIPLIER = 6.0;
-    private static final long RETRY_MAX_DELAY_MS = 120_000L;
+  private static final long RETRY_DELAY_MS = 5_000L;
+  private static final double RETRY_MULTIPLIER = 6.0;
+  private static final long RETRY_MAX_DELAY_MS = 120_000L;
 
-    private final InventoryService inventoryService;
+  private final InventoryService inventoryService;
+  private final EventValidator eventValidator;
 
-    @RetryableTopic(
-            attempts = "4",
-            backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
-            dltTopicSuffix = ".dlq",
-            exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
-                       InvalidReservationStateTransitionException.class, IllegalArgumentException.class}
-    )
-    @KafkaListener(topics = EventTopics.BOOKING_CREATED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onBookingCreated(Map<String, Object> envelope) {
-        UUID eventId = extractEventId(envelope);
-        Map<String, Object> payload = extractPayload(envelope);
+  @RetryableTopic(
+      attempts = "4",
+      backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
+      dltTopicSuffix = ".dlq",
+      exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
+          InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
+          ConstraintViolationException.class}
+  )
+  @KafkaListener(topics = EventTopics.BOOKING_CREATED, groupId = "${spring.kafka.consumer.group-id}")
+  public void onBookingCreated(EventEnvelope<BookingCreatedPayload> envelope) {
+    eventValidator.validate(envelope);
+    UUID eventId = envelope.eventId();
+    BookingCreatedPayload payload = envelope.payload();
 
-        ReserveCommand command = new ReserveCommand(
-                extractUuid(payload, "bookingId"),
-                stringOrNull(envelope.get("correlationId")),
-                stringOrNull(envelope.get("sagaId")),
-                extractItems(payload),
-                extractTotalAmount(payload)
-            );
+    ReserveCommand command = new ReserveCommand(
+        payload.bookingId(),
+        envelope.correlationId(),
+        envelope.sagaId(),
+        extractItems(payload),
+        payload.total().amount()
+    );
 
-        log.debug("Received BookingCreated: eventId={}, bookingId={}, items={}",
-                eventId, command.bookingId(), command.items().size());
-        inventoryService.reserve(eventId, command);
+    log.debug("Received BookingCreated: eventId={}, bookingId={}, items={}",
+        eventId, command.bookingId(), command.items().size());
+    inventoryService.reserve(eventId, command);
+  }
+
+  @RetryableTopic(
+      attempts = "4",
+      backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
+      dltTopicSuffix = ".dlq",
+      exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
+          InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
+          ConstraintViolationException.class}
+  )
+  @KafkaListener(topics = EventTopics.BOOKING_CONFIRMED, groupId = "${spring.kafka.consumer.group-id}")
+  public void onBookingConfirmed(EventEnvelope<BookingLifecyclePayload> envelope) {
+    eventValidator.validate(envelope);
+    UUID eventId = envelope.eventId();
+    UUID bookingId = envelope.payload().bookingId();
+
+    log.debug("Received BookingConfirmed: eventId={}, bookingId={}", eventId, bookingId);
+    inventoryService.confirm(eventId, bookingId);
+  }
+
+  @RetryableTopic(
+      attempts = "4",
+      backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
+      dltTopicSuffix = ".dlq",
+      exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
+          InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
+          ConstraintViolationException.class}
+  )
+  @KafkaListener(topics = EventTopics.BOOKING_CANCELLED, groupId = "${spring.kafka.consumer.group-id}")
+  public void onBookingCancelled(EventEnvelope<BookingLifecyclePayload> envelope) {
+    eventValidator.validate(envelope);
+    UUID eventId = envelope.eventId();
+    UUID bookingId = envelope.payload().bookingId();
+
+    log.debug("Received BookingCancelled: eventId={}, bookingId={}", eventId, bookingId);
+    inventoryService.release(eventId,
+        bookingId,
+        ConsumerEventType.BOOKING_CANCELLED,
+        envelope.correlationId(),
+        envelope.sagaId());
+  }
+
+  @RetryableTopic(
+      attempts = "4",
+      backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
+      dltTopicSuffix = ".dlq",
+      exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
+          InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
+          ConstraintViolationException.class}
+  )
+  @KafkaListener(topics = EventTopics.BOOKING_FAILED, groupId = "${spring.kafka.consumer.group-id}")
+  public void onBookingFailed(EventEnvelope<BookingLifecyclePayload> envelope) {
+    eventValidator.validate(envelope);
+    UUID eventId = envelope.eventId();
+    UUID bookingId = envelope.payload().bookingId();
+
+    log.debug("Received BookingFailed: eventId={}, bookingId={}", eventId, bookingId);
+    inventoryService.release(
+        eventId,
+        bookingId,
+        ConsumerEventType.BOOKING_FAILED,
+        envelope.correlationId(),
+        envelope.sagaId()
+    );
+  }
+
+  @RetryableTopic(
+      attempts = "4",
+      backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
+      dltTopicSuffix = ".dlq",
+      exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
+          InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
+          ConstraintViolationException.class}
+  )
+  @KafkaListener(topics = EventTopics.BOOKING_EXPIRED, groupId = "${spring.kafka.consumer.group-id}")
+  public void onBookingExpired(EventEnvelope<BookingLifecyclePayload> envelope) {
+    eventValidator.validate(envelope);
+    UUID eventId = envelope.eventId();
+    UUID bookingId = envelope.payload().bookingId();
+
+    log.debug("Received BookingExpired: eventId={}, bookingId={}", eventId, bookingId);
+    inventoryService.expire(
+        eventId,
+        bookingId,
+        envelope.correlationId(),
+        envelope.sagaId()
+    );
+  }
+
+  private List<RequestedItem> extractItems(BookingCreatedPayload payload) {
+    List<BookingItemEvent> items = payload.items();
+    if (items.isEmpty()) {
+      throw new IllegalArgumentException("Missing or empty 'items' in BookingCreated payload");
     }
+    return items.stream()
+        .map(this::toRequestedItem)
+        .toList();
+  }
 
-    @RetryableTopic(
-            attempts = "4",
-            backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
-            dltTopicSuffix = ".dlq",
-            exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
-                       InvalidReservationStateTransitionException.class, IllegalArgumentException.class}
-    )
-    @KafkaListener(topics = EventTopics.BOOKING_CONFIRMED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onBookingConfirmed(Map<String, Object> envelope) {
-        UUID eventId = extractEventId(envelope);
-        UUID bookingId = extractUuid(extractPayload(envelope), "bookingId");
-
-        log.debug("Received BookingConfirmed: eventId={}, bookingId={}", eventId, bookingId);
-        inventoryService.confirm(eventId, bookingId);
+  private RequestedItem toRequestedItem(BookingItemEvent item) {
+    String type = item.type();
+    UUID resourceId = item.resourceId();
+    Integer quantity = item.quantity();
+    BigDecimal amount = item.amount();
+    if (type == null || resourceId == null) {
+      throw new IllegalArgumentException("Booking item missing 'type' or 'resourceId'");
     }
-
-    @RetryableTopic(
-            attempts = "4",
-            backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
-            dltTopicSuffix = ".dlq",
-            exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
-                       InvalidReservationStateTransitionException.class, IllegalArgumentException.class}
-    )
-    @KafkaListener(topics = EventTopics.BOOKING_CANCELLED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onBookingCancelled(Map<String, Object> envelope) {
-        UUID eventId = extractEventId(envelope);
-        UUID bookingId = extractUuid(extractPayload(envelope), "bookingId");
-
-        log.debug("Received BookingCancelled: eventId={}, bookingId={}", eventId, bookingId);
-        inventoryService.release(eventId, bookingId, "BookingCancelled",
-                stringOrNull(envelope.get("correlationId")), stringOrNull(envelope.get("sagaId")));
-    }
-
-    @RetryableTopic(
-            attempts = "4",
-            backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
-            dltTopicSuffix = ".dlq",
-            exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
-                       InvalidReservationStateTransitionException.class, IllegalArgumentException.class}
-    )
-    @KafkaListener(topics = EventTopics.BOOKING_FAILED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onBookingFailed(Map<String, Object> envelope) {
-        UUID eventId = extractEventId(envelope);
-        UUID bookingId = extractUuid(extractPayload(envelope), "bookingId");
-
-        log.debug("Received BookingFailed: eventId={}, bookingId={}", eventId, bookingId);
-        inventoryService.release(eventId, bookingId, "BookingFailed",
-                stringOrNull(envelope.get("correlationId")), stringOrNull(envelope.get("sagaId")));
-    }
-
-    @RetryableTopic(
-            attempts = "4",
-            backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
-            dltTopicSuffix = ".dlq",
-            exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
-                       InvalidReservationStateTransitionException.class, IllegalArgumentException.class}
-    )
-    @KafkaListener(topics = EventTopics.BOOKING_EXPIRED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onBookingExpired(Map<String, Object> envelope) {
-        UUID eventId = extractEventId(envelope);
-        UUID bookingId = extractUuid(extractPayload(envelope), "bookingId");
-
-        log.debug("Received BookingExpired: eventId={}, bookingId={}", eventId, bookingId);
-        inventoryService.expire(eventId, bookingId,
-                stringOrNull(envelope.get("correlationId")), stringOrNull(envelope.get("sagaId")));
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private UUID extractEventId(Map<String, Object> envelope) {
-        Object raw = envelope.get("eventId");
-        if (raw == null) {
-            throw new IllegalArgumentException("Missing eventId in envelope");
-        }
-        return UUID.fromString(raw.toString());
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> extractPayload(Map<String, Object> envelope) {
-        Object raw = envelope.get("payload");
-        if (raw == null) {
-            throw new IllegalArgumentException("Missing payload in envelope");
-        }
-        return (Map<String, Object>) raw;
-    }
-
-//    private BigDecimal extractTotalAmount(Map<String, Object> payload) {
-//        Object raw = payload.get("total");
-//        if (raw == null) {
-//            throw new IllegalArgumentException("Missing 'total' in BookingCreated payload");
-//        }
-//        return new BigDecimal(raw.toString());
-//    }
-
-    private BigDecimal extractTotalAmount(Map<String, Object> payload) {
-        Object raw = payload.get("total");
-        if (!(raw instanceof Map<?, ?> money)) {
-            throw new IllegalArgumentException("Missing 'total' in BookingCreated payload");
-        }
-        Object amount = money.get("amount");
-        Object currency = money.get("currency");
-        if (amount == null || currency == null) {
-            throw new IllegalArgumentException("Illegal argument on 'total' field in BookingCreated payload");
-        }
-        return new BigDecimal(amount.toString());
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<RequestedItem> extractItems(Map<String, Object> payload) {
-        Object raw = payload.get("items");
-        if (!(raw instanceof List<?> rawItems) || rawItems.isEmpty()) {
-            throw new IllegalArgumentException("Missing or empty 'items' in BookingCreated payload");
-        }
-        return rawItems.stream()
-                .map(o -> (Map<String, Object>) o)
-                .map(this::toRequestedItem)
-                .toList();
-    }
-
-    private RequestedItem toRequestedItem(Map<String, Object> item) {
-        Object type = item.get("type");
-        Object resourceId = item.get("resourceId");
-        Object quantity = item.get("quantity");
-        Object amount = item.get("amount");
-        if (type == null || resourceId == null) {
-            throw new IllegalArgumentException("Booking item missing 'type' or 'resourceId'");
-        }
-        return new RequestedItem(
-                ResourceType.valueOf(type.toString()),
-                UUID.fromString(resourceId.toString()),
-                quantity == null ? 1 : ((Number) quantity).intValue(),
-                new BigDecimal(amount.toString())
-        );
-    }
-
-    private UUID extractUuid(Map<String, Object> payload, String field) {
-        Object raw = payload.get(field);
-        if (raw == null) {
-            throw new IllegalArgumentException("Missing field '" + field + "' in payload");
-        }
-        return UUID.fromString(raw.toString());
-    }
-
-    private String stringOrNull(Object value) {
-        return value == null ? null : value.toString();
-    }
+    return new RequestedItem(
+        ResourceType.valueOf(type),
+        resourceId,
+        quantity == null ? 1 : quantity,
+        amount
+    );
+  }
 }

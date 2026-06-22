@@ -7,7 +7,6 @@ import com.atlas.inventory.entity.ReservationHistory;
 import com.atlas.inventory.entity.ReservationStatus;
 import com.atlas.inventory.entity.ConsumedEvent;
 import com.atlas.inventory.event.FailedItem;
-import com.atlas.inventory.event.InventoryEventTypes;
 import com.atlas.inventory.event.InventoryRejectedPayload;
 import com.atlas.inventory.event.InventoryReleasedPayload;
 import com.atlas.inventory.event.InventoryReservedPayload;
@@ -21,6 +20,8 @@ import com.atlas.inventory.repository.InventoryRepository;
 import com.atlas.inventory.repository.ReservationHistoryRepository;
 import com.atlas.inventory.repository.ReservationRepository;
 import com.atlas.inventory.scheduler.ReservationExpirationProperties;
+import com.atlas.inventory.shared.messaging.ConsumerEventType;
+import com.atlas.inventory.shared.messaging.EventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -100,14 +101,14 @@ public class InventoryServiceImpl implements InventoryService {
             reservableItems.add(item);
         }
 
-        consumedEventRepository.save(new ConsumedEvent(eventId, "BookingCreated"));
+        consumedEventRepository.save(new ConsumedEvent(eventId, ConsumerEventType.BOOKING_CREATED));
 
         if (!failedItems.isEmpty()) {
             // All-or-nothing: nothing persisted; emit only the booking-facing rejection.
             outboxEventWriter.write(
                 AGGREGATE_BOOKING,
                 command.bookingId(),
-                InventoryEventTypes.INVENTORY_REJECTED,
+                EventType.INVENTORY_REJECTED,
                 command.correlationId(), command.sagaId(),
                 new InventoryRejectedPayload(command.bookingId(), failedItems)
             );
@@ -145,7 +146,7 @@ public class InventoryServiceImpl implements InventoryService {
             outboxEventWriter.write(
                 AGGREGATE_RESERVATION,
                 reservationId,
-                InventoryEventTypes.reserved(item.resourceType()),
+                EventType.reserved(item.resourceType()),
                 command.correlationId(), command.sagaId(),
                 new ReservationDeltaPayload(
                     reservationId,
@@ -160,7 +161,7 @@ public class InventoryServiceImpl implements InventoryService {
         outboxEventWriter.write(
             AGGREGATE_BOOKING,
             command.bookingId(),
-            InventoryEventTypes.INVENTORY_RESERVED,
+            EventType.INVENTORY_RESERVED,
             command.correlationId(), command.sagaId(),
             new InventoryReservedPayload(command.bookingId(), command.total(), reservedItems));
 
@@ -192,7 +193,7 @@ public class InventoryServiceImpl implements InventoryService {
             }
         }
 
-        consumedEventRepository.save(new ConsumedEvent(eventId, "BookingConfirmed"));
+        consumedEventRepository.save(new ConsumedEvent(eventId, ConsumerEventType.BOOKING_CONFIRMED));
         log.info("Inventory confirmed: bookingId={}", bookingId);
     }
 
@@ -202,7 +203,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional
-    public void release(UUID eventId, UUID bookingId, String triggerEventType,
+    public void release(UUID eventId, UUID bookingId, ConsumerEventType triggerEventType,
                         String correlationId, String sagaId) {
         if (consumedEventRepository.existsById(eventId)) {
             log.info("Skipping duplicate {}: eventId={}, bookingId={}", triggerEventType, eventId, bookingId);
@@ -210,12 +211,12 @@ public class InventoryServiceImpl implements InventoryService {
         }
 
         List<UUID> releasedIds = releaseActiveReservations(
-                bookingId, ReservationStatus.RELEASED, correlationId, sagaId, InventoryEventTypes::released);
+                bookingId, ReservationStatus.RELEASED, correlationId, sagaId, EventType::released);
 
         consumedEventRepository.save(new ConsumedEvent(eventId, triggerEventType));
 
         if (!releasedIds.isEmpty()) {
-            outboxEventWriter.write(AGGREGATE_BOOKING, bookingId, InventoryEventTypes.INVENTORY_RELEASED,
+            outboxEventWriter.write(AGGREGATE_BOOKING, bookingId, EventType.INVENTORY_RELEASED,
                     correlationId, sagaId, new InventoryReleasedPayload(bookingId, releasedIds));
         }
         log.info("Inventory released ({}): bookingId={}, released={}", triggerEventType, bookingId, releasedIds.size());
@@ -242,10 +243,10 @@ public class InventoryServiceImpl implements InventoryService {
             }
         }
 
-        consumedEventRepository.save(new ConsumedEvent(eventId, "BookingExpired"));
+        consumedEventRepository.save(new ConsumedEvent(eventId, ConsumerEventType.BOOKING_EXPIRED));
 
         if (!expiredIds.isEmpty()) {
-            outboxEventWriter.write(AGGREGATE_BOOKING, bookingId, InventoryEventTypes.INVENTORY_RELEASED,
+            outboxEventWriter.write(AGGREGATE_BOOKING, bookingId, EventType.INVENTORY_RELEASED,
                     correlationId, sagaId, new InventoryReleasedPayload(bookingId, expiredIds));
         }
         log.info("Inventory expired (BookingExpired): bookingId={}, expired={}", bookingId, expiredIds.size());
@@ -312,7 +313,7 @@ public class InventoryServiceImpl implements InventoryService {
         restoreAvailability(reservation);
 
         outboxEventWriter.write(AGGREGATE_RESERVATION, reservation.getId(),
-                InventoryEventTypes.expired(reservation.getResourceType()),
+                EventType.expired(reservation.getResourceType()),
                 correlationId, sagaId, deltaOf(reservation));
     }
 
@@ -334,9 +335,9 @@ public class InventoryServiceImpl implements InventoryService {
         reservationHistoryRepository.save(new ReservationHistory(UUID.randomUUID(), reservationId, status));
     }
 
-    /** Resolves the resource-facing event name for a {@link ResourceType}. */
+    /** Resolves the resource-facing event type for a {@link ResourceType}. */
     @FunctionalInterface
     private interface ResourceEventTypeResolver {
-        String resolve(ResourceType type);
+        EventType resolve(ResourceType type);
     }
 }

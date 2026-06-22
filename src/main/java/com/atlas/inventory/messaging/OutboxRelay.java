@@ -2,9 +2,9 @@ package com.atlas.inventory.messaging;
 
 import com.atlas.inventory.entity.OutboxEvent;
 import com.atlas.inventory.entity.OutboxStatus;
-import com.atlas.inventory.event.InventoryEventTypes;
 import com.atlas.inventory.repository.OutboxRepository;
 import com.atlas.inventory.shared.messaging.EventTopics;
+import com.atlas.inventory.shared.messaging.EventType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -78,20 +78,19 @@ public class OutboxRelay {
     }
 
     /** Maps an event type to its owning Inventory topic (topics.md, inventory-events.yaml). */
-    private String resolveTopic(String eventType) {
+    private String resolveTopic(EventType eventType) {
         return switch (eventType) {
             // Booking-facing (saga), keyed by bookingId
-            case InventoryEventTypes.INVENTORY_RESERVED -> EventTopics.INVENTORY_BOOKING_RESERVED;
-            case InventoryEventTypes.INVENTORY_REJECTED -> EventTopics.INVENTORY_BOOKING_REJECTED;
-            case InventoryEventTypes.INVENTORY_RELEASED -> EventTopics.INVENTORY_BOOKING_RELEASED;
+            case INVENTORY_RESERVED -> EventTopics.INVENTORY_BOOKING_RESERVED;
+            case INVENTORY_REJECTED -> EventTopics.INVENTORY_BOOKING_REJECTED;
+            case INVENTORY_RELEASED -> EventTopics.INVENTORY_BOOKING_RELEASED;
             // Resource-facing (availability), keyed by reservationId
-            case InventoryEventTypes.FLIGHT_SEATS_RESERVED      -> EventTopics.INVENTORY_FLIGHT_RESERVED;
-            case InventoryEventTypes.FLIGHT_SEATS_RELEASED      -> EventTopics.INVENTORY_FLIGHT_RELEASED;
-            case InventoryEventTypes.FLIGHT_RESERVATION_EXPIRED -> EventTopics.INVENTORY_FLIGHT_EXPIRED;
-            case InventoryEventTypes.HOTEL_ROOMS_RESERVED       -> EventTopics.INVENTORY_HOTEL_RESERVED;
-            case InventoryEventTypes.HOTEL_ROOMS_RELEASED       -> EventTopics.INVENTORY_HOTEL_RELEASED;
-            case InventoryEventTypes.HOTEL_RESERVATION_EXPIRED  -> EventTopics.INVENTORY_HOTEL_EXPIRED;
-            default -> throw new IllegalStateException("No topic mapping for event type: " + eventType);
+            case FLIGHT_SEATS_RESERVED      -> EventTopics.INVENTORY_FLIGHT_RESERVED;
+            case FLIGHT_SEATS_RELEASED      -> EventTopics.INVENTORY_FLIGHT_RELEASED;
+            case FLIGHT_RESERVATION_EXPIRED -> EventTopics.INVENTORY_FLIGHT_EXPIRED;
+            case HOTEL_ROOMS_RESERVED       -> EventTopics.INVENTORY_HOTEL_RESERVED;
+            case HOTEL_ROOMS_RELEASED       -> EventTopics.INVENTORY_HOTEL_RELEASED;
+            case HOTEL_RESERVATION_EXPIRED  -> EventTopics.INVENTORY_HOTEL_EXPIRED;
         };
     }
 }

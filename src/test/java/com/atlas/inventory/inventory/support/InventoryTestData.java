@@ -8,9 +8,9 @@ import com.atlas.inventory.entity.ResourceType;
 import com.atlas.inventory.service.RequestedItem;
 import com.atlas.inventory.service.ReserveCommand;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /** Shared fixtures for Inventory unit tests. */
@@ -23,6 +23,8 @@ public final class InventoryTestData {
     public static final UUID RESERVATION_ID     = UUID.fromString("00000000-0000-0000-0000-0000000000b0");
     public static final String CORRELATION_ID   = "test-correlation-id";
     public static final String SAGA_ID          = "00000000-0000-0000-0000-000000000099";
+    public static final BigDecimal ITEM_AMOUNT  = new BigDecimal("100.00");
+    public static final BigDecimal TOTAL        = new BigDecimal("100.00");
 
     // Catalog seeding fixtures
     public static final UUID FLIGHT_ID    = FLIGHT_RESOURCE_ID;
@@ -58,54 +60,20 @@ public final class InventoryTestData {
     }
 
     public static RequestedItem aFlightItem(int quantity) {
-        return new RequestedItem(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID, quantity);
+        return new RequestedItem(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID, quantity, ITEM_AMOUNT);
     }
 
     public static RequestedItem aHotelItem(int quantity) {
-        return new RequestedItem(ResourceType.HOTEL, HOTEL_RESOURCE_ID, quantity);
+        return new RequestedItem(ResourceType.HOTEL, HOTEL_RESOURCE_ID, quantity, ITEM_AMOUNT);
     }
 
     public static ReserveCommand aReserveCommand(RequestedItem... items) {
-        return new ReserveCommand(BOOKING_ID, CORRELATION_ID, SAGA_ID, List.of(items));
+        return new ReserveCommand(BOOKING_ID, CORRELATION_ID, SAGA_ID, List.of(items), TOTAL);
     }
 
     public static Inventory aHotelRoom(UUID roomTypeId, UUID hotelId, int totalCapacity, int reservedCount,
                                        InventoryStatus status) {
         return new Inventory(UUID.randomUUID(), ResourceType.HOTEL, roomTypeId, hotelId,
                 totalCapacity, reservedCount, status);
-    }
-
-    // ── Catalog event envelopes (Map form, as the consumer receives them) ──
-
-    public static Map<String, Object> aFlightEnvelope(UUID eventId, UUID flightId, int totalSeats) {
-        return Map.of(
-                "eventId", eventId.toString(),
-                "eventType", "FlightCreated",
-                "payload", Map.of("flightId", flightId.toString(), "totalSeats", totalSeats));
-    }
-
-    public static Map<String, Object> aFlightDeletedEnvelope(UUID eventId, UUID flightId) {
-        return Map.of(
-                "eventId", eventId.toString(),
-                "eventType", "FlightDeleted",
-                "payload", Map.of("flightId", flightId.toString()));
-    }
-
-    public static Map<String, Object> aHotelEnvelope(UUID eventId, UUID hotelId, Map<UUID, Integer> roomTypes) {
-        List<Map<String, Object>> rooms = roomTypes.entrySet().stream()
-                .map(e -> Map.<String, Object>of(
-                        "roomTypeId", e.getKey().toString(), "totalRooms", e.getValue()))
-                .toList();
-        return Map.of(
-                "eventId", eventId.toString(),
-                "eventType", "HotelCreated",
-                "payload", Map.of("hotelId", hotelId.toString(), "roomTypes", rooms));
-    }
-
-    public static Map<String, Object> aHotelDeletedEnvelope(UUID eventId, UUID hotelId) {
-        return Map.of(
-                "eventId", eventId.toString(),
-                "eventType", "HotelDeleted",
-                "payload", Map.of("hotelId", hotelId.toString()));
     }
 }

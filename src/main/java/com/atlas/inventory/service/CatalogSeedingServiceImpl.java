@@ -6,6 +6,7 @@ import com.atlas.inventory.entity.InventoryStatus;
 import com.atlas.inventory.entity.ResourceType;
 import com.atlas.inventory.repository.ConsumedEventRepository;
 import com.atlas.inventory.repository.InventoryRepository;
+import com.atlas.inventory.shared.messaging.ConsumerEventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,7 +37,7 @@ public class CatalogSeedingServiceImpl implements CatalogSeedingService {
 
     @Override
     @Transactional
-    public void upsertFlight(UUID eventId, String eventType, UUID flightId, int totalSeats) {
+    public void upsertFlight(UUID eventId, ConsumerEventType eventType, UUID flightId, int totalSeats) {
         if (alreadyConsumed(eventId, eventType, "flightId", flightId)) {
             return;
         }
@@ -48,14 +49,14 @@ public class CatalogSeedingServiceImpl implements CatalogSeedingService {
     @Override
     @Transactional
     public void disableFlight(UUID eventId, UUID flightId) {
-        if (alreadyConsumed(eventId, "FlightDeleted", "flightId", flightId)) {
+        if (alreadyConsumed(eventId, ConsumerEventType.FLIGHT_DELETED, "flightId", flightId)) {
             return;
         }
         boolean disabled = lockedDisable(ResourceType.FLIGHT, flightId);
         if (!disabled) {
             log.warn("FlightDeleted for unknown flight, no-op: flightId={}", flightId);
         }
-        consumedEventRepository.save(new ConsumedEvent(eventId, "FlightDeleted"));
+        consumedEventRepository.save(new ConsumedEvent(eventId, ConsumerEventType.FLIGHT_DELETED));
         log.info("Disabled flight inventory: flightId={}", flightId);
     }
 
@@ -65,7 +66,7 @@ public class CatalogSeedingServiceImpl implements CatalogSeedingService {
 
     @Override
     @Transactional
-    public void upsertHotel(UUID eventId, String eventType, UUID hotelId, List<RoomTypeSeed> roomTypes) {
+    public void upsertHotel(UUID eventId, ConsumerEventType eventType, UUID hotelId, List<RoomTypeSeed> roomTypes) {
         if (alreadyConsumed(eventId, eventType, "hotelId", hotelId)) {
             return;
         }
@@ -91,7 +92,7 @@ public class CatalogSeedingServiceImpl implements CatalogSeedingService {
     @Override
     @Transactional
     public void disableHotel(UUID eventId, UUID hotelId) {
-        if (alreadyConsumed(eventId, "HotelDeleted", "hotelId", hotelId)) {
+        if (alreadyConsumed(eventId, ConsumerEventType.HOTEL_DELETED, "hotelId", hotelId)) {
             return;
         }
         List<Inventory> rows = inventoryRepository.findByParentResourceId(hotelId);
@@ -101,7 +102,7 @@ public class CatalogSeedingServiceImpl implements CatalogSeedingService {
         for (Inventory row : rows) {
             lockedDisable(ResourceType.HOTEL, row.getResourceId());
         }
-        consumedEventRepository.save(new ConsumedEvent(eventId, "HotelDeleted"));
+        consumedEventRepository.save(new ConsumedEvent(eventId, ConsumerEventType.HOTEL_DELETED));
         log.info("Disabled hotel inventory: hotelId={}, rooms={}", hotelId, rows.size());
     }
 
@@ -141,7 +142,7 @@ public class CatalogSeedingServiceImpl implements CatalogSeedingService {
         }
     }
 
-    private boolean alreadyConsumed(UUID eventId, String eventType, String idField, UUID idValue) {
+    private boolean alreadyConsumed(UUID eventId, ConsumerEventType eventType, String idField, UUID idValue) {
         if (consumedEventRepository.existsById(eventId)) {
             log.info("Skipping duplicate {}: eventId={}, {}={}", eventType, eventId, idField, idValue);
             return true;

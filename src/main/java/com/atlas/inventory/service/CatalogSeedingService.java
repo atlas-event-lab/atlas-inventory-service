@@ -1,5 +1,6 @@
 package com.atlas.inventory.service;
 
+import com.atlas.inventory.shared.messaging.ConsumerEventType;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,7 +13,7 @@ import java.util.UUID;
 public interface CatalogSeedingService {
 
     /** {@code FlightCreated} / {@code FlightUpdated}: upsert one FLIGHT row, capacity = {@code totalSeats}. */
-    void upsertFlight(UUID eventId, String eventType, UUID flightId, int totalSeats);
+    void upsertFlight(UUID eventId, ConsumerEventType eventType, UUID flightId, int totalSeats);
 
     /** {@code FlightDeleted}: DISABLE the flight's row (no new reservations); no-op if unknown. */
     void disableFlight(UUID eventId, UUID flightId);
@@ -21,7 +22,7 @@ public interface CatalogSeedingService {
      * {@code HotelCreated} / {@code HotelUpdated}: upsert one HOTEL row per room type (capacity =
      * {@code totalRooms}) and DISABLE rows of this hotel absent from {@code roomTypes} (removed room types).
      */
-    void upsertHotel(UUID eventId, String eventType, UUID hotelId, List<RoomTypeSeed> roomTypes);
+    void upsertHotel(UUID eventId, ConsumerEventType eventType, UUID hotelId, List<RoomTypeSeed> roomTypes);
 
     /** {@code HotelDeleted}: DISABLE every per-room-type row of the hotel; no-op if unknown. */
     void disableHotel(UUID eventId, UUID hotelId);

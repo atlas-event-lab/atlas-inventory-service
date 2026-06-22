@@ -1,19 +1,27 @@
 package com.atlas.inventory.inventory.messaging;
 
 import com.atlas.inventory.entity.ResourceType;
+import com.atlas.inventory.event.BookingCreatedPayload;
+import com.atlas.inventory.event.BookingItemEvent;
+import com.atlas.inventory.event.BookingLifecyclePayload;
+import com.atlas.inventory.event.EventValidator;
+import com.atlas.inventory.event.MoneyEvent;
 import com.atlas.inventory.messaging.BookingEventConsumer;
 import com.atlas.inventory.service.InventoryService;
 import com.atlas.inventory.service.ReserveCommand;
 import com.atlas.inventory.inventory.support.InventoryTestData;
+import com.atlas.inventory.shared.messaging.ConsumerEventType;
+import com.atlas.inventory.shared.messaging.EventEnvelope;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
-import java.util.Map;
 
 import static com.atlas.inventory.inventory.support.InventoryTestData.BOOKING_ID;
 import static com.atlas.inventory.inventory.support.InventoryTestData.EVENT_ID;
@@ -27,24 +35,36 @@ import static org.mockito.Mockito.verify;
 class BookingEventConsumerTest {
 
     @Mock InventoryService inventoryService;
+    @Mock EventValidator eventValidator;
 
     @InjectMocks
     BookingEventConsumer consumer;
 
+    private static <T> EventEnvelope<T> envelope(String eventType, T payload) {
+        return new EventEnvelope<>(
+                EVENT_ID,
+                eventType,
+                1,
+                Instant.now(),
+                null,
+                InventoryTestData.CORRELATION_ID,
+                InventoryTestData.SAGA_ID,
+                "booking-service",
+                payload);
+    }
+
     @Test
     void onBookingCreated_extracts_items_and_saga_metadata() {
-        Map<String, Object> envelope = Map.of(
-                "eventId", EVENT_ID.toString(),
-                "correlationId", InventoryTestData.CORRELATION_ID,
-                "sagaId", InventoryTestData.SAGA_ID,
-                "payload", Map.of(
-                        "bookingId", BOOKING_ID.toString(),
-                        "items", List.of(Map.of(
-                                "type", "FLIGHT",
-                                "resourceId", FLIGHT_RESOURCE_ID.toString(),
-                                "quantity", 2))));
+        EventEnvelope<BookingCreatedPayload> env = envelope("BOOKING_CREATED",
+                new BookingCreatedPayload(
+                        BOOKING_ID,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        List.of(new BookingItemEvent("FLIGHT", FLIGHT_RESOURCE_ID, 2, new BigDecimal("100.00"))),
+                        1,
+                        new MoneyEvent(new BigDecimal("100.00"), "USD")));
 
-        consumer.onBookingCreated(envelope);
+        consumer.onBookingCreated(env);
 
         ArgumentCaptor<ReserveCommand> command = ArgumentCaptor.forClass(ReserveCommand.class);
         verify(inventoryService).reserve(eq(EVENT_ID), command.capture());
@@ -60,48 +80,49 @@ class BookingEventConsumerTest {
 
     @Test
     void onBookingCreated_missing_items_is_rejected() {
-        Map<String, Object> envelope = Map.of(
-                "eventId", EVENT_ID.toString(),
-                "payload", Map.of("bookingId", BOOKING_ID.toString()));
+        EventEnvelope<BookingCreatedPayload> env = envelope("BOOKING_CREATED",
+                new BookingCreatedPayload(
+                        BOOKING_ID,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        List.of(),
+                        1,
+                        new MoneyEvent(new BigDecimal("100.00"), "USD")));
 
-        assertThatThrownBy(() -> consumer.onBookingCreated(envelope))
+        assertThatThrownBy(() -> consumer.onBookingCreated(env))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("items");
     }
 
     @Test
     void onBookingCancelled_delegates_to_release() {
-        Map<String, Object> envelope = Map.of(
-                "eventId", EVENT_ID.toString(),
-                "correlationId", InventoryTestData.CORRELATION_ID,
-                "sagaId", InventoryTestData.SAGA_ID,
-                "payload", Map.of("bookingId", BOOKING_ID.toString()));
+        EventEnvelope<BookingLifecyclePayload> env = envelope("BOOKING_CANCELLED",
+                new BookingLifecyclePayload(BOOKING_ID, null, null));
 
-        consumer.onBookingCancelled(envelope);
+        consumer.onBookingCancelled(env);
 
-        verify(inventoryService).release(eq(EVENT_ID), eq(BOOKING_ID), eq("BookingCancelled"),
-                eq(InventoryTestData.CORRELATION_ID), eq(InventoryTestData.SAGA_ID));
+        verify(inventoryService).release(EVENT_ID, BOOKING_ID, ConsumerEventType.BOOKING_CANCELLED,
+                InventoryTestData.CORRELATION_ID, InventoryTestData.SAGA_ID);
     }
 
     @Test
     void onBookingConfirmed_delegates_to_confirm() {
-        Map<String, Object> envelope = Map.of(
-                "eventId", EVENT_ID.toString(),
-                "payload", Map.of("bookingId", BOOKING_ID.toString()));
+        EventEnvelope<BookingLifecyclePayload> env = envelope("BOOKING_CONFIRMED",
+                new BookingLifecyclePayload(BOOKING_ID, null, null));
 
-        consumer.onBookingConfirmed(envelope);
+        consumer.onBookingConfirmed(env);
 
         verify(inventoryService).confirm(EVENT_ID, BOOKING_ID);
     }
 
     @Test
     void onBookingExpired_delegates_to_expire() {
-        Map<String, Object> envelope = Map.of(
-                "eventId", EVENT_ID.toString(),
-                "payload", Map.of("bookingId", BOOKING_ID.toString()));
+        EventEnvelope<BookingLifecyclePayload> env = envelope("BOOKING_EXPIRED",
+                new BookingLifecyclePayload(BOOKING_ID, null, null));
 
-        consumer.onBookingExpired(envelope);
+        consumer.onBookingExpired(env);
 
-        verify(inventoryService).expire(eq(EVENT_ID), eq(BOOKING_ID), eq(null), eq(null));
+        verify(inventoryService).expire(EVENT_ID, BOOKING_ID,
+                InventoryTestData.CORRELATION_ID, InventoryTestData.SAGA_ID);
     }
 }

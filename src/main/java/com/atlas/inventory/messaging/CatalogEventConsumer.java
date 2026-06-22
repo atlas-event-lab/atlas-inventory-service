@@ -1,8 +1,16 @@
 package com.atlas.inventory.messaging;
 
+import com.atlas.inventory.event.EventValidator;
+import com.atlas.inventory.event.FlightCatalogPayload;
+import com.atlas.inventory.event.FlightDeletedPayload;
+import com.atlas.inventory.event.HotelCatalogPayload;
+import com.atlas.inventory.event.HotelDeletedPayload;
 import com.atlas.inventory.service.CatalogSeedingService;
 import com.atlas.inventory.service.RoomTypeSeed;
+import com.atlas.inventory.shared.messaging.ConsumerEventType;
+import com.atlas.inventory.shared.messaging.EventEnvelope;
 import com.atlas.inventory.shared.messaging.EventTopics;
+import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -11,7 +19,6 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -20,7 +27,8 @@ import java.util.UUID;
  * holds no business logic. Reactions are idempotent on {@code eventId}.
  * <p>
  * Retry strategy (retry-strategy.md): 4 attempts (5s → 30s → 120s → DLQ). Malformed payloads
- * ({@link IllegalArgumentException}) are non-retryable and go straight to the DLQ (dlq-strategy.md).
+ * ({@link IllegalArgumentException} / {@link ConstraintViolationException}) are non-retryable and go
+ * straight to the DLQ (dlq-strategy.md).
  */
 @Slf4j
 @Component
@@ -32,6 +40,7 @@ public class CatalogEventConsumer {
     private static final long RETRY_MAX_DELAY_MS = 120_000L;
 
     private final CatalogSeedingService catalogSeedingService;
+    private final EventValidator eventValidator;
 
     // ── Flight ────────────────────────────────────────────────────────────────
 
@@ -39,34 +48,35 @@ public class CatalogEventConsumer {
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
-            exclude = {IllegalArgumentException.class}
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.FLIGHT_CREATED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onFlightCreated(Map<String, Object> envelope) {
-        upsertFlight(envelope, "FlightCreated");
+    public void onFlightCreated(EventEnvelope<FlightCatalogPayload> envelope) {
+        upsertFlight(envelope, ConsumerEventType.FLIGHT_CREATED);
     }
 
     @RetryableTopic(
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
-            exclude = {IllegalArgumentException.class}
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.FLIGHT_UPDATED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onFlightUpdated(Map<String, Object> envelope) {
-        upsertFlight(envelope, "FlightUpdated");
+    public void onFlightUpdated(EventEnvelope<FlightCatalogPayload> envelope) {
+        upsertFlight(envelope, ConsumerEventType.FLIGHT_UPDATED);
     }
 
     @RetryableTopic(
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
-            exclude = {IllegalArgumentException.class}
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.FLIGHT_DELETED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onFlightDeleted(Map<String, Object> envelope) {
-        UUID eventId = extractEventId(envelope);
-        UUID flightId = extractUuid(extractPayload(envelope), "flightId");
+    public void onFlightDeleted(EventEnvelope<FlightDeletedPayload> envelope) {
+        eventValidator.validate(envelope);
+        UUID eventId = envelope.eventId();
+        UUID flightId = envelope.payload().flightId();
         log.debug("Received FlightDeleted: eventId={}, flightId={}", eventId, flightId);
         catalogSeedingService.disableFlight(eventId, flightId);
     }
@@ -77,102 +87,60 @@ public class CatalogEventConsumer {
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
-            exclude = {IllegalArgumentException.class}
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.HOTEL_CREATED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onHotelCreated(Map<String, Object> envelope) {
-        upsertHotel(envelope, "HotelCreated");
+    public void onHotelCreated(EventEnvelope<HotelCatalogPayload> envelope) {
+        upsertHotel(envelope, ConsumerEventType.HOTEL_CREATED);
     }
 
     @RetryableTopic(
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
-            exclude = {IllegalArgumentException.class}
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.HOTEL_UPDATED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onHotelUpdated(Map<String, Object> envelope) {
-        upsertHotel(envelope, "HotelUpdated");
+    public void onHotelUpdated(EventEnvelope<HotelCatalogPayload> envelope) {
+        upsertHotel(envelope, ConsumerEventType.HOTEL_UPDATED);
     }
 
     @RetryableTopic(
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
-            exclude = {IllegalArgumentException.class}
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.HOTEL_DELETED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onHotelDeleted(Map<String, Object> envelope) {
-        UUID eventId = extractEventId(envelope);
-        UUID hotelId = extractUuid(extractPayload(envelope), "hotelId");
+    public void onHotelDeleted(EventEnvelope<HotelDeletedPayload> envelope) {
+        eventValidator.validate(envelope);
+        UUID eventId = envelope.eventId();
+        UUID hotelId = envelope.payload().hotelId();
         log.debug("Received HotelDeleted: eventId={}, hotelId={}", eventId, hotelId);
         catalogSeedingService.disableHotel(eventId, hotelId);
     }
 
     // ── Dispatch helpers ────────────────────────────────────────────────────────
 
-    private void upsertFlight(Map<String, Object> envelope, String eventType) {
-        UUID eventId = extractEventId(envelope);
-        Map<String, Object> payload = extractPayload(envelope);
-        UUID flightId = extractUuid(payload, "flightId");
-        int totalSeats = extractInt(payload, "totalSeats");
+    private void upsertFlight(EventEnvelope<FlightCatalogPayload> envelope, ConsumerEventType eventType) {
+        eventValidator.validate(envelope);
+        UUID eventId = envelope.eventId();
+        FlightCatalogPayload payload = envelope.payload();
+        UUID flightId = payload.flightId();
+        int totalSeats = payload.totalSeats();
         log.debug("Received {}: eventId={}, flightId={}, totalSeats={}", eventType, eventId, flightId, totalSeats);
         catalogSeedingService.upsertFlight(eventId, eventType, flightId, totalSeats);
     }
 
-    private void upsertHotel(Map<String, Object> envelope, String eventType) {
-        UUID eventId = extractEventId(envelope);
-        Map<String, Object> payload = extractPayload(envelope);
-        UUID hotelId = extractUuid(payload, "hotelId");
-        List<RoomTypeSeed> roomTypes = extractRoomTypes(payload);
+    private void upsertHotel(EventEnvelope<HotelCatalogPayload> envelope, ConsumerEventType eventType) {
+        eventValidator.validate(envelope);
+        UUID eventId = envelope.eventId();
+        HotelCatalogPayload payload = envelope.payload();
+        UUID hotelId = payload.hotelId();
+        List<RoomTypeSeed> roomTypes = payload.roomTypes().stream()
+                .map(rt -> new RoomTypeSeed(rt.roomTypeId(), rt.totalRooms()))
+                .toList();
         log.debug("Received {}: eventId={}, hotelId={}, roomTypes={}", eventType, eventId, hotelId, roomTypes.size());
         catalogSeedingService.upsertHotel(eventId, eventType, hotelId, roomTypes);
-    }
-
-    // ── Envelope/payload extraction ──────────────────────────────────────────────
-
-    private UUID extractEventId(Map<String, Object> envelope) {
-        Object raw = envelope.get("eventId");
-        if (raw == null) {
-            throw new IllegalArgumentException("Missing eventId in envelope");
-        }
-        return UUID.fromString(raw.toString());
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> extractPayload(Map<String, Object> envelope) {
-        Object raw = envelope.get("payload");
-        if (raw == null) {
-            throw new IllegalArgumentException("Missing payload in envelope");
-        }
-        return (Map<String, Object>) raw;
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<RoomTypeSeed> extractRoomTypes(Map<String, Object> payload) {
-        Object raw = payload.get("roomTypes");
-        if (!(raw instanceof List<?> rawRoomTypes) || rawRoomTypes.isEmpty()) {
-            throw new IllegalArgumentException("Missing or empty 'roomTypes' in hotel payload");
-        }
-        return rawRoomTypes.stream()
-                .map(o -> (Map<String, Object>) o)
-                .map(rt -> new RoomTypeSeed(extractUuid(rt, "roomTypeId"), extractInt(rt, "totalRooms")))
-                .toList();
-    }
-
-    private UUID extractUuid(Map<String, Object> map, String field) {
-        Object raw = map.get(field);
-        if (raw == null) {
-            throw new IllegalArgumentException("Missing field '" + field + "'");
-        }
-        return UUID.fromString(raw.toString());
-    }
-
-    private int extractInt(Map<String, Object> map, String field) {
-        Object raw = map.get(field);
-        if (!(raw instanceof Number number)) {
-            throw new IllegalArgumentException("Missing or non-numeric field '" + field + "'");
-        }
-        return number.intValue();
     }
 }

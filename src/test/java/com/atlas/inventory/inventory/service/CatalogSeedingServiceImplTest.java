@@ -8,6 +8,7 @@ import com.atlas.inventory.repository.InventoryRepository;
 import com.atlas.inventory.inventory.support.InventoryTestData;
 import com.atlas.inventory.service.CatalogSeedingServiceImpl;
 import com.atlas.inventory.service.RoomTypeSeed;
+import com.atlas.inventory.shared.messaging.ConsumerEventType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -49,7 +50,7 @@ class CatalogSeedingServiceImplTest {
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
         when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_ID)).thenReturn(Optional.empty());
 
-        newService().upsertFlight(EVENT_ID, "FlightCreated", FLIGHT_ID, 180);
+        newService().upsertFlight(EVENT_ID, ConsumerEventType.FLIGHT_CREATED, FLIGHT_ID, 180);
 
         ArgumentCaptor<Inventory> saved = ArgumentCaptor.forClass(Inventory.class);
         verify(inventoryRepository).save(saved.capture());
@@ -67,7 +68,7 @@ class CatalogSeedingServiceImplTest {
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
         when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_ID)).thenReturn(Optional.of(existing));
 
-        newService().upsertFlight(EVENT_ID, "FlightUpdated", FLIGHT_ID, 250);
+        newService().upsertFlight(EVENT_ID, ConsumerEventType.FLIGHT_UPDATED, FLIGHT_ID, 250);
 
         assertThat(existing.getTotalCapacity()).isEqualTo(250);
         verify(inventoryRepository, never()).save(any());
@@ -80,7 +81,7 @@ class CatalogSeedingServiceImplTest {
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
         when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_ID)).thenReturn(Optional.of(existing));
 
-        newService().upsertFlight(EVENT_ID, "FlightUpdated", FLIGHT_ID, 30);
+        newService().upsertFlight(EVENT_ID, ConsumerEventType.FLIGHT_UPDATED, FLIGHT_ID, 30);
 
         assertThat(existing.getTotalCapacity()).isEqualTo(30);
         assertThat(existing.isOversold()).isTrue();
@@ -91,7 +92,7 @@ class CatalogSeedingServiceImplTest {
     void upsertFlight_duplicate_event_is_skipped() {
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(true);
 
-        newService().upsertFlight(EVENT_ID, "FlightCreated", FLIGHT_ID, 180);
+        newService().upsertFlight(EVENT_ID, ConsumerEventType.FLIGHT_CREATED, FLIGHT_ID, 180);
 
         verify(inventoryRepository, never()).findForUpdate(any(), any());
         verify(inventoryRepository, never()).save(any());
@@ -129,7 +130,7 @@ class CatalogSeedingServiceImplTest {
         when(inventoryRepository.findForUpdate(ResourceType.HOTEL, ROOM_TYPE_B)).thenReturn(Optional.empty());
         when(inventoryRepository.findByParentResourceId(HOTEL_ID)).thenReturn(List.of());
 
-        newService().upsertHotel(EVENT_ID, "HotelCreated", HOTEL_ID,
+        newService().upsertHotel(EVENT_ID, ConsumerEventType.HOTEL_CREATED, HOTEL_ID,
                 List.of(new RoomTypeSeed(ROOM_TYPE_A, 20), new RoomTypeSeed(ROOM_TYPE_B, 5)));
 
         verify(inventoryRepository, times(2)).save(any(Inventory.class));
@@ -146,7 +147,7 @@ class CatalogSeedingServiceImplTest {
         when(inventoryRepository.findByParentResourceId(HOTEL_ID)).thenReturn(List.of(roomA, roomB));
 
         // HotelUpdated now carries only room type A — B was removed.
-        newService().upsertHotel(EVENT_ID, "HotelUpdated", HOTEL_ID, List.of(new RoomTypeSeed(ROOM_TYPE_A, 25)));
+        newService().upsertHotel(EVENT_ID, ConsumerEventType.HOTEL_UPDATED, HOTEL_ID, List.of(new RoomTypeSeed(ROOM_TYPE_A, 25)));
 
         assertThat(roomA.getTotalCapacity()).isEqualTo(25);
         assertThat(roomA.getStatus()).isEqualTo(InventoryStatus.ACTIVE);
@@ -173,7 +174,7 @@ class CatalogSeedingServiceImplTest {
     void upsertHotel_duplicate_event_is_skipped() {
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(true);
 
-        newService().upsertHotel(EVENT_ID, "HotelUpdated", HOTEL_ID, List.of(new RoomTypeSeed(ROOM_TYPE_A, 25)));
+        newService().upsertHotel(EVENT_ID, ConsumerEventType.HOTEL_UPDATED, HOTEL_ID, List.of(new RoomTypeSeed(ROOM_TYPE_A, 25)));
 
         verify(inventoryRepository, never()).findForUpdate(any(), any());
         verify(inventoryRepository, never()).findByParentResourceId(any());
