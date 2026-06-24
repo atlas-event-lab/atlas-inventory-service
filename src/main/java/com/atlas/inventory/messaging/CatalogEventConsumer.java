@@ -8,13 +8,14 @@ import com.atlas.inventory.event.HotelDeletedPayload;
 import com.atlas.inventory.service.CatalogSeedingService;
 import com.atlas.inventory.service.RoomTypeSeed;
 import com.atlas.inventory.shared.messaging.ConsumerEventType;
-import com.atlas.inventory.shared.messaging.EventEnvelope;
+import com.atlas.inventory.event.EventEnvelope;
 import com.atlas.inventory.shared.messaging.EventTopics;
 import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
@@ -48,6 +49,8 @@ public class CatalogEventConsumer {
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
+            dltStrategy = DltStrategy.FAIL_ON_ERROR,
+            autoStartDltHandler = "false",
             exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.FLIGHT_CREATED, groupId = "${spring.kafka.consumer.group-id}")
@@ -59,6 +62,8 @@ public class CatalogEventConsumer {
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
+            dltStrategy = DltStrategy.FAIL_ON_ERROR,
+            autoStartDltHandler = "false",
             exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.FLIGHT_UPDATED, groupId = "${spring.kafka.consumer.group-id}")
@@ -70,6 +75,8 @@ public class CatalogEventConsumer {
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
+            dltStrategy = DltStrategy.FAIL_ON_ERROR,
+            autoStartDltHandler = "false",
             exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.FLIGHT_DELETED, groupId = "${spring.kafka.consumer.group-id}")
@@ -87,6 +94,8 @@ public class CatalogEventConsumer {
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
+            dltStrategy = DltStrategy.FAIL_ON_ERROR,
+            autoStartDltHandler = "false",
             exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.HOTEL_CREATED, groupId = "${spring.kafka.consumer.group-id}")
@@ -98,6 +107,8 @@ public class CatalogEventConsumer {
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
+            dltStrategy = DltStrategy.FAIL_ON_ERROR,
+            autoStartDltHandler = "false",
             exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.HOTEL_UPDATED, groupId = "${spring.kafka.consumer.group-id}")
@@ -109,6 +120,8 @@ public class CatalogEventConsumer {
             attempts = "4",
             backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
             dltTopicSuffix = ".dlq",
+            dltStrategy = DltStrategy.FAIL_ON_ERROR,
+            autoStartDltHandler = "false",
             exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
     )
     @KafkaListener(topics = EventTopics.HOTEL_DELETED, groupId = "${spring.kafka.consumer.group-id}")

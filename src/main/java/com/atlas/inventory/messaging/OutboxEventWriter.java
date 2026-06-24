@@ -2,7 +2,7 @@ package com.atlas.inventory.messaging;
 
 import com.atlas.inventory.entity.OutboxEvent;
 import com.atlas.inventory.repository.OutboxRepository;
-import com.atlas.inventory.shared.messaging.EventEnvelope;
+import com.atlas.inventory.event.EventEnvelope;
 import com.atlas.inventory.shared.messaging.EventType;
 import com.atlas.inventory.shared.web.CorrelationIdFilter;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -47,9 +47,9 @@ public class OutboxEventWriter {
      * @param sagaId        saga instance id (OBS-003)
      * @param payload       the business payload (never null, never carries metadata)
      */
-    public void write(String aggregateType, UUID aggregateId, EventType eventType,
-                      String correlationId, String sagaId, Object payload) {
-        var envelope = new EventEnvelope<>(
+    public <T> void write(String aggregateType, UUID aggregateId, EventType eventType,
+                      String correlationId, String sagaId, T payload) {
+        EventEnvelope<T> envelope = new EventEnvelope<>(
                 UUID.randomUUID(),
                 eventType.name(),
                 EVENT_VERSION,

@@ -1,4 +1,4 @@
-package com.atlas.inventory.shared.messaging;
+package com.atlas.inventory.event;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

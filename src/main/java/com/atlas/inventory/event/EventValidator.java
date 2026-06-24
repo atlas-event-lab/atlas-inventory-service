@@ -1,6 +1,5 @@
 package com.atlas.inventory.event;
 
-import com.atlas.inventory.shared.messaging.EventEnvelope;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;

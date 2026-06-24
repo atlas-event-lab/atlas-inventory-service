@@ -11,7 +11,7 @@ import com.atlas.inventory.service.InventoryService;
 import com.atlas.inventory.service.ReserveCommand;
 import com.atlas.inventory.inventory.support.InventoryTestData;
 import com.atlas.inventory.shared.messaging.ConsumerEventType;
-import com.atlas.inventory.shared.messaging.EventEnvelope;
+import com.atlas.inventory.event.EventEnvelope;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;

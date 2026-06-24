@@ -12,7 +12,7 @@ import com.atlas.inventory.service.InventoryService;
 import com.atlas.inventory.service.RequestedItem;
 import com.atlas.inventory.service.ReserveCommand;
 import com.atlas.inventory.shared.messaging.ConsumerEventType;
-import com.atlas.inventory.shared.messaging.EventEnvelope;
+import com.atlas.inventory.event.EventEnvelope;
 import com.atlas.inventory.shared.messaging.EventTopics;
 import jakarta.validation.ConstraintViolationException;
 import java.math.BigDecimal;
@@ -20,11 +20,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -55,6 +55,8 @@ public class BookingEventConsumer {
       attempts = "4",
       backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
       dltTopicSuffix = ".dlq",
+      dltStrategy = DltStrategy.FAIL_ON_ERROR,
+      autoStartDltHandler = "false",
       exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
           InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
           ConstraintViolationException.class}
@@ -82,6 +84,8 @@ public class BookingEventConsumer {
       attempts = "4",
       backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
       dltTopicSuffix = ".dlq",
+      dltStrategy = DltStrategy.FAIL_ON_ERROR,
+      autoStartDltHandler = "false",
       exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
           InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
           ConstraintViolationException.class}
@@ -100,6 +104,8 @@ public class BookingEventConsumer {
       attempts = "4",
       backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
       dltTopicSuffix = ".dlq",
+      dltStrategy = DltStrategy.FAIL_ON_ERROR,
+      autoStartDltHandler = "false",
       exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
           InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
           ConstraintViolationException.class}
@@ -122,6 +128,8 @@ public class BookingEventConsumer {
       attempts = "4",
       backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
       dltTopicSuffix = ".dlq",
+      dltStrategy = DltStrategy.FAIL_ON_ERROR,
+      autoStartDltHandler = "false",
       exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
           InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
           ConstraintViolationException.class}
@@ -146,6 +154,8 @@ public class BookingEventConsumer {
       attempts = "4",
       backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = RETRY_MULTIPLIER, maxDelay = RETRY_MAX_DELAY_MS),
       dltTopicSuffix = ".dlq",
+      dltStrategy = DltStrategy.FAIL_ON_ERROR,
+      autoStartDltHandler = "false",
       exclude = {InventoryNotFoundException.class, ReservationNotFoundException.class,
           InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
           ConstraintViolationException.class}
