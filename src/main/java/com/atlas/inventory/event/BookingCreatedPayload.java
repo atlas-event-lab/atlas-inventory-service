@@ -13,9 +13,6 @@ public record BookingCreatedPayload(
     @NotNull
     UUID userId,
 
-    @NotNull
-    UUID tripId,
-
     @Valid
     @NotNull
     List<BookingItemEvent> items,

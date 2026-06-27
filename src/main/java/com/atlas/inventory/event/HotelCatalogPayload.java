@@ -24,6 +24,5 @@ public record HotelCatalogPayload(
         @Valid
         @NotEmpty
         List<RoomTypeEvent> roomTypes,
-        List<String> amenities,
-        List<String> images
+        List<String> amenities
 ) {}
