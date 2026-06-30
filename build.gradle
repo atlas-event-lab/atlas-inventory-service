@@ -46,7 +46,7 @@ tasks.named('test') {
 
 tasks.register("downloadOpenApi") {
     doLast {
-        new URL("http://localhost:8084/v3/api-docs.yaml")
+        new URL("http://localhost:8080/v3/api-docs.yaml")
                 .withInputStream { input ->
                     file("$projectDir/build/inventory.yaml").bytes = input.bytes
                 }

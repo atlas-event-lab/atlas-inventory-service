@@ -1,5 +1,5 @@
 server:
-  port: 8084
+  port: 8080
 
 springdoc:
   api-docs:
@@ -69,6 +69,8 @@ atlas:
       sweep-interval-ms: ${INVENTORY_RESERVATION_SWEEP_INTERVAL_MS:60000}
 
 management:
+  server:
+    port: 9090
   endpoints:
     web:
       exposure:
@@ -76,6 +78,8 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      probes:
+        enabled: true
 
 logging:
   level:
