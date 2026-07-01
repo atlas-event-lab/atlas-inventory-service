@@ -21,11 +21,11 @@ RUN ./gradlew --no-daemon clean bootJar
 
 # ─── Runtime stage ───────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S spring && adduser -S spring -G spring
+RUN addgroup -S -g 1001 spring && adduser -S -u 1001 -G spring spring
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar
 RUN chown spring:spring app.jar
-USER spring:spring
+USER 1001:1001
 
 ENV JAVA_OPTS="\
   -XX:MaxRAMPercentage=75 \
