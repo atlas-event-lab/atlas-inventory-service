@@ -61,7 +61,8 @@ public class BookingEventConsumer {
           InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
           ConstraintViolationException.class}
   )
-  @KafkaListener(topics = EventTopics.BOOKING_CREATED, groupId = "${spring.kafka.consumer.group-id}")
+  @KafkaListener(topics = EventTopics.BOOKING_CREATED, groupId = "${spring.kafka.consumer.group-id}",
+      containerFactory = "sagaListenerFactory")
   public void onBookingCreated(EventEnvelope<BookingCreatedPayload> envelope) {
     eventValidator.validate(envelope);
     UUID eventId = envelope.eventId();
@@ -90,7 +91,8 @@ public class BookingEventConsumer {
           InvalidReservationStateTransitionException.class, IllegalArgumentException.class,
           ConstraintViolationException.class}
   )
-  @KafkaListener(topics = EventTopics.BOOKING_CONFIRMED, groupId = "${spring.kafka.consumer.group-id}")
+  @KafkaListener(topics = EventTopics.BOOKING_CONFIRMED, groupId = "${spring.kafka.consumer.group-id}",
+      containerFactory = "sagaListenerFactory")
   public void onBookingConfirmed(EventEnvelope<BookingLifecyclePayload> envelope) {
     eventValidator.validate(envelope);
     UUID eventId = envelope.eventId();

@@ -2,9 +2,13 @@ package com.atlas.inventory.config;
 
 import com.atlas.inventory.shared.messaging.EventTopics;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
+import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.support.converter.RecordMessageConverter;
 import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 
@@ -20,6 +24,19 @@ public class KafkaConfig {
     @Bean
     public RecordMessageConverter jsonConverter() {
         return new StringJsonMessageConverter();
+    }
+
+    /* Dedicated listener factory for the high-throughput saga listeners (booking.created, booking.confirmed) */
+    @Bean
+    ConcurrentKafkaListenerContainerFactory<Object, Object> sagaListenerFactory(
+            ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
+            ConsumerFactory<Object, Object> kafkaConsumerFactory,
+            @Value("${KAFKA_CONCURRENCY:2}") int concurrency) {
+        ConcurrentKafkaListenerContainerFactory<Object, Object> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        configurer.configure(factory, kafkaConsumerFactory);
+        factory.setConcurrency(concurrency);
+        return factory;
     }
 
     private static NewTopic topic(String name) {
