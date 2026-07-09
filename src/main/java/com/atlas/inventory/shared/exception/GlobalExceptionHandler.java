@@ -89,6 +89,16 @@ public class GlobalExceptionHandler {
         return respond(HttpStatus.NOT_FOUND, problem);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ProblemDetail> handleIllegalArgument(
+            IllegalArgumentException ex, HttpServletRequest request) {
+
+        ProblemDetail problem = problemOf(HttpStatus.BAD_REQUEST, ex.getMessage(),
+                ProblemTypes.VALIDATION, PROBLEM_TITLE_VALIDATION_ERROR, request);
+
+        return respond(HttpStatus.BAD_REQUEST, problem);
+    }
+
     @ExceptionHandler(InvalidReservationStateTransitionException.class)
     public ResponseEntity<ProblemDetail> handleInvalidStateTransition(
             InvalidReservationStateTransitionException ex, HttpServletRequest request) {

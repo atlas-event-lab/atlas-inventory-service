@@ -16,6 +16,7 @@ import com.atlas.inventory.event.EventEnvelope;
 import com.atlas.inventory.shared.messaging.EventTopics;
 import jakarta.validation.ConstraintViolationException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -195,11 +196,26 @@ public class BookingEventConsumer {
     if (type == null || resourceId == null) {
       throw new IllegalArgumentException("Booking item missing 'type' or 'resourceId'");
     }
-    return new RequestedItem(
-        ResourceType.valueOf(type),
-        resourceId,
-        quantity == null ? 1 : quantity,
-        amount
-    );
+    ResourceType resourceType = ResourceType.valueOf(type);
+    int qty = quantity == null ? 1 : quantity;
+    if (resourceType == ResourceType.HOTEL) {
+      return toHotelItem(item, resourceId, qty, amount);
+    }
+    return RequestedItem.flight(resourceId, qty, amount);
+  }
+
+  /** HOTEL items must carry a valid stay range {@code [checkIn, checkOut)} with nights >= 1
+   * (Booking validates the full rules per ADR-0010; Inventory rejects malformed events). */
+  private RequestedItem toHotelItem(BookingItemEvent item, UUID resourceId, int qty, BigDecimal amount) {
+    LocalDate checkIn = item.checkIn();
+    LocalDate checkOut = item.checkOut();
+    if (checkIn == null || checkOut == null) {
+      throw new IllegalArgumentException("Hotel booking item missing 'checkIn' or 'checkOut'");
+    }
+    if (!checkOut.isAfter(checkIn)) {
+      throw new IllegalArgumentException("Hotel booking item requires checkOut > checkIn: "
+          + "checkIn=" + checkIn + ", checkOut=" + checkOut);
+    }
+    return RequestedItem.hotel(resourceId, qty, amount, checkIn, checkOut);
   }
 }

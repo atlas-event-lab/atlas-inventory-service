@@ -62,7 +62,7 @@ class BookingEventConsumerTest {
             BOOKING_ID,
             UUID.randomUUID(),
             List.of(
-                new BookingItemEvent("FLIGHT", FLIGHT_RESOURCE_ID, 2, new BigDecimal("100.00"))),
+                new BookingItemEvent("FLIGHT", FLIGHT_RESOURCE_ID, 2, new BigDecimal("100.00"), null, null)),
             1,
             new MoneyEvent(new BigDecimal("100.00"), "USD")));
 
@@ -78,6 +78,44 @@ class BookingEventConsumerTest {
     assertThat(cmd.items().getFirst().resourceType()).isEqualTo(ResourceType.FLIGHT);
     assertThat(cmd.items().getFirst().resourceId()).isEqualTo(FLIGHT_RESOURCE_ID);
     assertThat(cmd.items().getFirst().quantity()).isEqualTo(2);
+  }
+
+  @Test
+  void onBookingCreated_hotel_item_carries_stay_dates() {
+    EventEnvelope<BookingCreatedPayload> env = envelope("BOOKING_CREATED",
+        new BookingCreatedPayload(
+            BOOKING_ID,
+            UUID.randomUUID(),
+            List.of(new BookingItemEvent("HOTEL", InventoryTestData.HOTEL_RESOURCE_ID, 1,
+                new BigDecimal("200.00"), InventoryTestData.CHECK_IN, InventoryTestData.CHECK_OUT)),
+            1,
+            new MoneyEvent(new BigDecimal("200.00"), "USD")));
+
+    consumer.onBookingCreated(env);
+
+    ArgumentCaptor<ReserveCommand> command = ArgumentCaptor.forClass(ReserveCommand.class);
+    verify(inventoryService).reserve(eq(EVENT_ID), command.capture());
+    var item = command.getValue().items().getFirst();
+    assertThat(item.resourceType()).isEqualTo(ResourceType.HOTEL);
+    assertThat(item.checkIn()).isEqualTo(InventoryTestData.CHECK_IN);
+    assertThat(item.checkOut()).isEqualTo(InventoryTestData.CHECK_OUT);
+    assertThat(item.nights()).containsExactly(InventoryTestData.CHECK_IN, InventoryTestData.CHECK_IN.plusDays(1));
+  }
+
+  @Test
+  void onBookingCreated_hotel_item_missing_dates_is_rejected() {
+    EventEnvelope<BookingCreatedPayload> env = envelope("BOOKING_CREATED",
+        new BookingCreatedPayload(
+            BOOKING_ID,
+            UUID.randomUUID(),
+            List.of(new BookingItemEvent("HOTEL", InventoryTestData.HOTEL_RESOURCE_ID, 1,
+                new BigDecimal("200.00"), null, null)),
+            1,
+            new MoneyEvent(new BigDecimal("200.00"), "USD")));
+
+    assertThatThrownBy(() -> consumer.onBookingCreated(env))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("checkIn");
   }
 
   @Test

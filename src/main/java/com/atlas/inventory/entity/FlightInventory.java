@@ -7,7 +7,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -21,23 +20,23 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Availability of a reservable resource (services/inventory/service.md). Inventory is the single
- * authority for live availability: {@code available = totalCapacity − reservedCount}. The row is
- * pessimistically locked while reserving so concurrent reservations are serialized and
+ * Scalar availability of a flight (services/inventory/service.md; ADR-0008). A flight instance is
+ * already a date, so it keeps the scalar model: {@code available = totalCapacity − reservedCount}.
+ * The row is pessimistically locked while reserving so concurrent reservations are serialized and
  * {@code available} never goes negative (no double-booking, state_machine.md §Concurrency).
+ *
+ * <p>This is the former shared {@code Inventory} specialized to FLIGHT (ADR-0008): the
+ * {@code resource_type} and {@code parent_resource_id} discriminator columns are removed; hotels now
+ * live in {@link RoomTypeNightAvailability}.
  */
 @Entity
-@Table(
-        name = "inventory",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uq_inventory_resource",
-                columnNames = {"resource_type", "resource_id"}))
+@Table(name = "flight_inventory")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString(onlyExplicitlyIncluded = true)
-public class Inventory {
+public class FlightInventory {
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
@@ -45,23 +44,10 @@ public class Inventory {
     @ToString.Include
     private UUID id;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "resource_type", nullable = false, updatable = false, length = 20)
-    @ToString.Include
-    private ResourceType resourceType;
-
-    /** Local reference to the catalog resource (flightId / roomTypeId) — never a cross-service FK (ARCH-004). */
+    /** Local reference to the flight in the catalog (flightId) — never a cross-service FK (ARCH-004). */
     @Column(name = "resource_id", nullable = false, updatable = false)
     @ToString.Include
     private UUID resourceId;
-
-    /**
-     * Parent catalog resource id: the {@code hotelId} for HOTEL rows (one Inventory row per room type),
-     * {@code null} for FLIGHT rows. Lets a {@code HotelDeleted}/{@code HotelUpdated} (which carry only
-     * {@code hotelId}) locate and reconcile every room-type row of a hotel. Local reference (ARCH-004).
-     */
-    @Column(name = "parent_resource_id", updatable = false)
-    private UUID parentResourceId;
 
     @Column(name = "total_capacity", nullable = false)
     private int totalCapacity;
@@ -81,17 +67,9 @@ public class Inventory {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public Inventory(UUID id, ResourceType resourceType, UUID resourceId,
-                     int totalCapacity, int reservedCount, InventoryStatus status) {
-        this(id, resourceType, resourceId, null, totalCapacity, reservedCount, status);
-    }
-
-    public Inventory(UUID id, ResourceType resourceType, UUID resourceId, UUID parentResourceId,
-                     int totalCapacity, int reservedCount, InventoryStatus status) {
+    public FlightInventory(UUID id, UUID resourceId, int totalCapacity, int reservedCount, InventoryStatus status) {
         this.id = id;
-        this.resourceType = resourceType;
         this.resourceId = resourceId;
-        this.parentResourceId = parentResourceId;
         this.totalCapacity = totalCapacity;
         this.reservedCount = reservedCount;
         this.status = status;
@@ -110,36 +88,36 @@ public class Inventory {
         return status == InventoryStatus.ACTIVE;
     }
 
-    /** True when the resource is ACTIVE and has at least {@code quantity} units available. */
+    /** True when the flight is ACTIVE and has at least {@code quantity} seats available. */
     public boolean canReserve(int quantity) {
         return isActive() && available() >= quantity;
     }
 
     /**
-     * Allocates {@code quantity} units. Caller MUST hold the pessimistic lock and have checked
+     * Allocates {@code quantity} seats. Caller MUST hold the pessimistic lock and have checked
      * {@link #canReserve(int)} first; the guard here is defence in depth so availability never
      * goes negative (state_machine.md §Concurrency).
      */
     public void reserve(int quantity) {
         if (!canReserve(quantity)) {
             throw new IllegalStateException(
-                    "Cannot reserve " + quantity + " units of inventory " + id
+                    "Cannot reserve " + quantity + " seats of flight inventory " + id
                     + " (status=" + status + ", available=" + available() + ")");
         }
         this.reservedCount += quantity;
     }
 
-    /** Returns {@code quantity} units to availability (release/expiry). Floors at zero (idempotent-safe). */
+    /** Returns {@code quantity} seats to availability (release/expiry). Floors at zero (idempotent-safe). */
     public void release(int quantity) {
         this.reservedCount = Math.max(0, this.reservedCount - quantity);
     }
 
-    /** Sets {@code totalCapacity} to the catalog's new absolute published value (FlightUpdated/HotelUpdated). */
+    /** Sets {@code totalCapacity} to the catalog's new absolute published value (FlightUpdated). */
     public void updateCapacity(int newCapacity) {
         this.totalCapacity = newCapacity;
     }
 
-    /** Withdraws the resource: no new reservations; existing reservations are untouched (FlightDeleted/HotelDeleted). */
+    /** Withdraws the flight: no new reservations; existing reservations are untouched (FlightDeleted). */
     public void disable() {
         this.status = InventoryStatus.DISABLED;
     }

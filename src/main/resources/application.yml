@@ -71,6 +71,14 @@ atlas:
       # while payment is legitimately in flight.
       ttl: ${INVENTORY_RESERVATION_TTL:15m}
       sweep-interval-ms: ${INVENTORY_RESERVATION_SWEEP_INTERVAL_MS:60000}
+    hotel:
+      # Per-night hotel calendar (ADR-0008). Seeding materializes the nights [today, today + horizon);
+      # the rolling job keeps the window this size and purges completed nights after the retention.
+      horizon-days: ${INVENTORY_HOTEL_HORIZON_DAYS:365}
+      purge-after-days: ${INVENTORY_HOTEL_PURGE_AFTER_DAYS:7}
+      # "today" advances once a day, so the rolling job runs daily by default.
+      roll-interval-ms: ${INVENTORY_HOTEL_ROLL_INTERVAL_MS:86400000}
+      roll-initial-delay-ms: ${INVENTORY_HOTEL_ROLL_INITIAL_DELAY_MS:60000}
 
 management:
   server:

@@ -1,11 +1,15 @@
 package com.atlas.inventory.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorColumn;
+import jakarta.persistence.DiscriminatorType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -22,19 +26,25 @@ import java.util.UUID;
 
 /**
  * A temporary lock over Inventory for one booking item (glossary; one Reservation per item).
- * The lifecycle ({@code RESERVED → CONFIRMED/RELEASED/EXPIRED}) is defined in
+ * Abstract base of a JPA {@code SINGLE_TABLE} hierarchy (ADR-0008): {@link FlightReservation} (no
+ * dates) and {@link HotelReservation} (carries the stay range). One physical {@code reservations}
+ * table discriminated by {@code resource_type}; the hotel date columns are nullable.
+ *
+ * <p>The lifecycle ({@code RESERVED → CONFIRMED/RELEASED/EXPIRED}) is defined in
  * services/inventory/state_machine.md and enforced by {@code ReservationStateTransitionGuard}.
  * {@code correlationId}/{@code sagaId} are carried from the originating Booking event so the TTL
  * sweep can still propagate them onto resource-facing events (OBS-002, OBS-003).
  */
 @Entity
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "resource_type", discriminatorType = DiscriminatorType.STRING, length = 20)
 @Table(name = "reservations")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString(onlyExplicitlyIncluded = true)
-public class Reservation {
+public abstract class Reservation {
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
@@ -47,10 +57,7 @@ public class Reservation {
     @ToString.Include
     private UUID bookingId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "resource_type", nullable = false, updatable = false, length = 20)
-    private ResourceType resourceType;
-
+    /** Local reference to the reserved resource (flightId / roomTypeId), never a cross-service FK (ARCH-004). */
     @Column(name = "resource_id", nullable = false, updatable = false)
     private UUID resourceId;
 
@@ -80,12 +87,10 @@ public class Reservation {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public Reservation(UUID id, UUID bookingId, ResourceType resourceType, UUID resourceId,
-                       int quantity, ReservationStatus status, Instant expiresAt,
-                       String correlationId, String sagaId) {
+    protected Reservation(UUID id, UUID bookingId, UUID resourceId, int quantity,
+                          ReservationStatus status, Instant expiresAt, String correlationId, String sagaId) {
         this.id = id;
         this.bookingId = bookingId;
-        this.resourceType = resourceType;
         this.resourceId = resourceId;
         this.quantity = quantity;
         this.status = status;
@@ -94,7 +99,10 @@ public class Reservation {
         this.sagaId = sagaId;
     }
 
-    /** True while the reservation still holds inventory (counts towards {@code reservedCount}). */
+    /** The resource family this reservation belongs to (drives resource-facing event type resolution). */
+    public abstract ResourceType resourceType();
+
+    /** True while the reservation still holds inventory (counts towards reserved availability). */
     public boolean isActive() {
         return status == ReservationStatus.RESERVED || status == ReservationStatus.CONFIRMED;
     }

@@ -1,15 +1,18 @@
 package com.atlas.inventory.inventory.support;
 
-import com.atlas.inventory.entity.Inventory;
+import com.atlas.inventory.entity.FlightInventory;
+import com.atlas.inventory.entity.FlightReservation;
+import com.atlas.inventory.entity.HotelReservation;
 import com.atlas.inventory.entity.InventoryStatus;
 import com.atlas.inventory.entity.Reservation;
 import com.atlas.inventory.entity.ReservationStatus;
-import com.atlas.inventory.entity.ResourceType;
+import com.atlas.inventory.entity.RoomTypeNightAvailability;
 import com.atlas.inventory.service.RequestedItem;
 import com.atlas.inventory.service.ReserveCommand;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,47 +36,61 @@ public final class InventoryTestData {
     public static final UUID ROOM_TYPE_B  = UUID.fromString("00000000-0000-0000-0000-0000000000a2");
 
     public static final Instant NOW = Instant.parse("2026-06-20T12:00:00Z");
+    public static final LocalDate TODAY = LocalDate.of(2026, 6, 20);
+    // A 2-night stay well inside the horizon: nights 2026-08-01, 2026-08-02.
+    public static final LocalDate CHECK_IN  = LocalDate.of(2026, 8, 1);
+    public static final LocalDate CHECK_OUT = LocalDate.of(2026, 8, 3);
 
     private InventoryTestData() {}
 
-    public static Inventory anInventory(ResourceType type, UUID resourceId,
-                                        int totalCapacity, int reservedCount, InventoryStatus status) {
-        return new Inventory(UUID.randomUUID(), type, resourceId, totalCapacity, reservedCount, status);
+    // ── Flight inventory ─────────────────────────────────────────────────────
+
+    public static FlightInventory aFlight(int totalCapacity, int reservedCount, InventoryStatus status) {
+        return new FlightInventory(UUID.randomUUID(), FLIGHT_RESOURCE_ID, totalCapacity, reservedCount, status);
     }
 
-    public static Inventory anActiveFlight(int totalCapacity, int reservedCount) {
-        return anInventory(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID, totalCapacity, reservedCount, InventoryStatus.ACTIVE);
+    public static FlightInventory anActiveFlight(int totalCapacity, int reservedCount) {
+        return aFlight(totalCapacity, reservedCount, InventoryStatus.ACTIVE);
     }
 
-    public static Inventory anActiveHotel(int totalCapacity, int reservedCount) {
-        return anInventory(ResourceType.HOTEL, HOTEL_RESOURCE_ID, totalCapacity, reservedCount, InventoryStatus.ACTIVE);
+    // ── Room-type night availability ─────────────────────────────────────────
+
+    public static RoomTypeNightAvailability aNight(LocalDate stayDate, int totalRooms, int reserved,
+                                                   InventoryStatus status) {
+        return new RoomTypeNightAvailability(UUID.randomUUID(), HOTEL_RESOURCE_ID, HOTEL_ID, stayDate,
+                totalRooms, reserved, status);
     }
 
-    public static Reservation aReservation(ReservationStatus status, ResourceType type,
-                                           UUID resourceId, int quantity) {
-        return new Reservation(UUID.randomUUID(), BOOKING_ID, type, resourceId, quantity,
+    /** The night rows for the standard {@link #CHECK_IN}..{@link #CHECK_OUT} stay, all with the same capacity. */
+    public static List<RoomTypeNightAvailability> stayNights(int totalRooms, int reserved, InventoryStatus status) {
+        return List.of(
+                aNight(CHECK_IN, totalRooms, reserved, status),
+                aNight(CHECK_IN.plusDays(1), totalRooms, reserved, status));
+    }
+
+    // ── Reservations ─────────────────────────────────────────────────────────
+
+    public static FlightReservation aFlightReservation(ReservationStatus status) {
+        return new FlightReservation(UUID.randomUUID(), BOOKING_ID, FLIGHT_RESOURCE_ID, 1,
                 status, NOW.plusSeconds(900), CORRELATION_ID, SAGA_ID);
     }
 
-    public static Reservation aFlightReservation(ReservationStatus status) {
-        return aReservation(status, ResourceType.FLIGHT, FLIGHT_RESOURCE_ID, 1);
+    public static HotelReservation aHotelReservation(ReservationStatus status, int quantity) {
+        return new HotelReservation(UUID.randomUUID(), BOOKING_ID, HOTEL_RESOURCE_ID, quantity,
+                status, NOW.plusSeconds(900), CORRELATION_ID, SAGA_ID, CHECK_IN, CHECK_OUT);
     }
 
+    // ── Requested items / commands ───────────────────────────────────────────
+
     public static RequestedItem aFlightItem(int quantity) {
-        return new RequestedItem(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID, quantity, ITEM_AMOUNT);
+        return RequestedItem.flight(FLIGHT_RESOURCE_ID, quantity, ITEM_AMOUNT);
     }
 
     public static RequestedItem aHotelItem(int quantity) {
-        return new RequestedItem(ResourceType.HOTEL, HOTEL_RESOURCE_ID, quantity, ITEM_AMOUNT);
+        return RequestedItem.hotel(HOTEL_RESOURCE_ID, quantity, ITEM_AMOUNT, CHECK_IN, CHECK_OUT);
     }
 
     public static ReserveCommand aReserveCommand(RequestedItem... items) {
         return new ReserveCommand(BOOKING_ID, CORRELATION_ID, SAGA_ID, List.of(items), TOTAL);
-    }
-
-    public static Inventory aHotelRoom(UUID roomTypeId, UUID hotelId, int totalCapacity, int reservedCount,
-                                       InventoryStatus status) {
-        return new Inventory(UUID.randomUUID(), ResourceType.HOTEL, roomTypeId, hotelId,
-                totalCapacity, reservedCount, status);
     }
 }

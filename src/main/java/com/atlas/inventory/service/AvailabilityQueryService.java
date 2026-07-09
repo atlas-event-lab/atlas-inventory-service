@@ -1,9 +1,10 @@
 package com.atlas.inventory.service;
 
+import com.atlas.inventory.dto.FlightAvailabilityResponse;
+import com.atlas.inventory.dto.HotelAvailabilityResponse;
 import com.atlas.inventory.exception.InventoryNotFoundException;
-import com.atlas.inventory.dto.AvailabilityResponse;
-import com.atlas.inventory.entity.ResourceType;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -13,8 +14,14 @@ import java.util.UUID;
 public interface AvailabilityQueryService {
 
     /**
-     * @return the availability of the resource.
-     * @throws InventoryNotFoundException if no such resource (404).
+     * @return the scalar availability of a flight.
+     * @throws InventoryNotFoundException if no such flight (404).
      */
-    AvailabilityResponse getAvailability(ResourceType resourceType, UUID resourceId);
+    FlightAvailabilityResponse getFlightAvailability(UUID flightId);
+
+    /**
+     * @return the per-night availability of a room type over {@code [from, to)}.
+     * @throws InventoryNotFoundException if the room type has no calendar rows in the range (404).
+     */
+    HotelAvailabilityResponse getHotelAvailability(UUID roomTypeId, LocalDate from, LocalDate to);
 }

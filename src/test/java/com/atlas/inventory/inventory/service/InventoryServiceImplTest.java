@@ -1,17 +1,20 @@
 package com.atlas.inventory.inventory.service;
 
-import com.atlas.inventory.entity.Inventory;
+import com.atlas.inventory.entity.FlightInventory;
+import com.atlas.inventory.entity.HotelReservation;
 import com.atlas.inventory.entity.InventoryStatus;
 import com.atlas.inventory.entity.Reservation;
 import com.atlas.inventory.entity.ReservationStatus;
-import com.atlas.inventory.entity.ResourceType;
+import com.atlas.inventory.entity.RoomTypeNightAvailability;
+import com.atlas.inventory.event.HotelAvailabilityPayload;
 import com.atlas.inventory.event.InventoryRejectedPayload;
 import com.atlas.inventory.exception.ReservationNotFoundException;
 import com.atlas.inventory.messaging.OutboxEventWriter;
 import com.atlas.inventory.repository.ConsumedEventRepository;
-import com.atlas.inventory.repository.InventoryRepository;
+import com.atlas.inventory.repository.FlightInventoryRepository;
 import com.atlas.inventory.repository.ReservationHistoryRepository;
 import com.atlas.inventory.repository.ReservationRepository;
+import com.atlas.inventory.repository.RoomTypeNightAvailabilityRepository;
 import com.atlas.inventory.scheduler.ReservationExpirationProperties;
 import com.atlas.inventory.shared.messaging.ConsumerEventType;
 import com.atlas.inventory.shared.messaging.EventType;
@@ -32,12 +35,14 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.atlas.inventory.inventory.support.InventoryTestData.BOOKING_ID;
+import static com.atlas.inventory.inventory.support.InventoryTestData.CHECK_IN;
 import static com.atlas.inventory.inventory.support.InventoryTestData.EVENT_ID;
 import static com.atlas.inventory.inventory.support.InventoryTestData.FLIGHT_RESOURCE_ID;
 import static com.atlas.inventory.inventory.support.InventoryTestData.HOTEL_RESOURCE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -47,7 +52,8 @@ import static org.mockito.Mockito.when;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class InventoryServiceImplTest {
 
-    @Mock InventoryRepository inventoryRepository;
+    @Mock FlightInventoryRepository flightInventoryRepository;
+    @Mock RoomTypeNightAvailabilityRepository roomTypeAvailabilityRepository;
     @Mock ReservationRepository reservationRepository;
     @Mock ReservationHistoryRepository reservationHistoryRepository;
     @Mock ConsumedEventRepository consumedEventRepository;
@@ -56,63 +62,116 @@ class InventoryServiceImplTest {
     private InventoryServiceImpl newService() {
         var properties = new ReservationExpirationProperties(Duration.ofMinutes(15));
         Clock clock = Clock.fixed(InventoryTestData.NOW, ZoneOffset.UTC);
-        return new InventoryServiceImpl(inventoryRepository, reservationRepository,
-                reservationHistoryRepository, consumedEventRepository, outboxEventWriter, properties, clock);
+        return new InventoryServiceImpl(flightInventoryRepository, roomTypeAvailabilityRepository,
+                reservationRepository, reservationHistoryRepository, consumedEventRepository,
+                outboxEventWriter, properties, clock);
     }
 
-    // ── reserve — happy path (AC1) ───────────────────────────────────────────
+    // ── reserve flight — happy path (AC1) ────────────────────────────────────
 
     @Test
-    void reserve_happyPath_creates_RESERVED_and_publishes_reserved_events() {
-        Inventory flight = InventoryTestData.anActiveFlight(10, 0);
+    void reserve_flight_happyPath_creates_RESERVED_and_publishes_absolute_reserved_event() {
+        FlightInventory flight = InventoryTestData.anActiveFlight(10, 0);
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
-        when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID))
-                .thenReturn(Optional.of(flight));
+        when(flightInventoryRepository.findForUpdate(FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(flight));
 
         newService().reserve(EVENT_ID, InventoryTestData.aReserveCommand(InventoryTestData.aFlightItem(2)));
 
         assertThat(flight.getReservedCount()).isEqualTo(2);
         verify(reservationRepository).save(any(Reservation.class));
-        verify(outboxEventWriter).write(eq("Reservation"), any(), eq(EventType.FLIGHT_SEATS_RESERVED), any(), any(), any());
+        // Resource-facing event is now keyed by flightId (aggregate "Flight").
+        verify(outboxEventWriter).write(eq("Flight"), eq(FLIGHT_RESOURCE_ID),
+                eq(EventType.FLIGHT_SEATS_RESERVED), any(), any(), any());
         verify(outboxEventWriter).write(eq("Booking"), eq(BOOKING_ID), eq(EventType.INVENTORY_RESERVED), any(), any(), any());
         verify(outboxEventWriter, never()).write(any(), any(), eq(EventType.INVENTORY_REJECTED), any(), any(), any());
         verify(consumedEventRepository).save(any());
     }
 
-    // ── reserve — all-or-nothing rejection (AC2) ─────────────────────────────
+    // ── reserve hotel — happy path over the night set ─────────────────────────
 
     @Test
-    void reserve_oneItemUnavailable_persists_nothing_and_rejects_with_all_failed_items() {
-        Inventory flight = InventoryTestData.anActiveFlight(10, 0);   // available
-        Inventory hotel  = InventoryTestData.anActiveHotel(1, 1);     // full → unavailable
+    void reserve_hotel_happyPath_reserves_every_night_and_publishes_per_night_absolute_event() {
+        List<RoomTypeNightAvailability> nights = InventoryTestData.stayNights(5, 1, InventoryStatus.ACTIVE);
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
-        when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(flight));
-        when(inventoryRepository.findForUpdate(ResourceType.HOTEL, HOTEL_RESOURCE_ID)).thenReturn(Optional.of(hotel));
+        when(roomTypeAvailabilityRepository.findForUpdateByRoomTypeIdAndStayDateIn(eq(HOTEL_RESOURCE_ID), anyList()))
+                .thenReturn(nights);
 
-        newService().reserve(EVENT_ID,
-                InventoryTestData.aReserveCommand(InventoryTestData.aFlightItem(1), InventoryTestData.aHotelItem(2)));
+        newService().reserve(EVENT_ID, InventoryTestData.aReserveCommand(InventoryTestData.aHotelItem(2)));
 
-        // Nothing reserved on the available item either (all-or-nothing).
-        assertThat(flight.getReservedCount()).isZero();
+        // reserved += 2 on EVERY night.
+        assertThat(nights).allSatisfy(n -> assertThat(n.getReserved()).isEqualTo(3));
+        verify(reservationRepository).save(any(HotelReservation.class));
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(outboxEventWriter).write(eq("Hotel"), eq(HOTEL_RESOURCE_ID),
+                eq(EventType.HOTEL_ROOMS_RESERVED), any(), any(), payload.capture());
+        HotelAvailabilityPayload hotel = (HotelAvailabilityPayload) payload.getValue();
+        assertThat(hotel.nights()).hasSize(2);
+        assertThat(hotel.nights()).allSatisfy(na -> assertThat(na.reserved()).isEqualTo(3)); // absolute, not delta
+        assertThat(hotel.roomTypeId()).isEqualTo(HOTEL_RESOURCE_ID);
+    }
+
+    @Test
+    void reserve_hotel_oneNightSoldOut_rejects_and_reserves_nothing() {
+        // Night 1 has room, night 2 is sold out → the whole item is unavailable.
+        RoomTypeNightAvailability night1 = InventoryTestData.aNight(CHECK_IN, 5, 0, InventoryStatus.ACTIVE);
+        RoomTypeNightAvailability night2 = InventoryTestData.aNight(CHECK_IN.plusDays(1), 5, 5, InventoryStatus.ACTIVE);
+        when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
+        when(roomTypeAvailabilityRepository.findForUpdateByRoomTypeIdAndStayDateIn(eq(HOTEL_RESOURCE_ID), anyList()))
+                .thenReturn(List.of(night1, night2));
+
+        newService().reserve(EVENT_ID, InventoryTestData.aReserveCommand(InventoryTestData.aHotelItem(1)));
+
+        assertThat(night1.getReserved()).isZero();
         verify(reservationRepository, never()).save(any());
-        verify(outboxEventWriter, never()).write(any(), any(), eq(EventType.INVENTORY_RESERVED), any(), any(), any());
+        verify(outboxEventWriter).write(eq("Booking"), eq(BOOKING_ID), eq(EventType.INVENTORY_REJECTED), any(), any(), any());
+        verify(outboxEventWriter, never()).write(any(), any(), eq(EventType.HOTEL_ROOMS_RESERVED), any(), any(), any());
+    }
+
+    @Test
+    void reserve_hotel_missingNightInCalendar_is_rejected() {
+        // Only one of the two stay nights exists in the calendar → cannot guarantee availability.
+        when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
+        when(roomTypeAvailabilityRepository.findForUpdateByRoomTypeIdAndStayDateIn(eq(HOTEL_RESOURCE_ID), anyList()))
+                .thenReturn(List.of(InventoryTestData.aNight(CHECK_IN, 5, 0, InventoryStatus.ACTIVE)));
+
+        newService().reserve(EVENT_ID, InventoryTestData.aReserveCommand(InventoryTestData.aHotelItem(1)));
 
         ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(outboxEventWriter).write(eq("Booking"), eq(BOOKING_ID), eq(EventType.INVENTORY_REJECTED),
                 any(), any(), payload.capture());
-        assertThat(payload.getValue()).isInstanceOf(InventoryRejectedPayload.class);
         InventoryRejectedPayload rejected = (InventoryRejectedPayload) payload.getValue();
         assertThat(rejected.failedItems()).hasSize(1);
-        assertThat(rejected.failedItems().getFirst().resourceType()).isEqualTo(ResourceType.HOTEL);
         assertThat(rejected.failedItems().getFirst().available()).isZero();
+        verify(reservationRepository, never()).save(any());
+    }
+
+    // ── reserve — all-or-nothing across items (AC2) ──────────────────────────
+
+    @Test
+    void reserve_oneItemUnavailable_persists_nothing_and_rejects() {
+        FlightInventory flight = InventoryTestData.anActiveFlight(10, 0);   // available
+        List<RoomTypeNightAvailability> nights = InventoryTestData.stayNights(1, 1, InventoryStatus.ACTIVE); // full
+        when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
+        when(flightInventoryRepository.findForUpdate(FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(flight));
+        when(roomTypeAvailabilityRepository.findForUpdateByRoomTypeIdAndStayDateIn(eq(HOTEL_RESOURCE_ID), anyList()))
+                .thenReturn(nights);
+
+        newService().reserve(EVENT_ID,
+                InventoryTestData.aReserveCommand(InventoryTestData.aFlightItem(1), InventoryTestData.aHotelItem(2)));
+
+        assertThat(flight.getReservedCount()).isZero();          // available item untouched (all-or-nothing)
+        assertThat(nights).allSatisfy(n -> assertThat(n.getReserved()).isEqualTo(1));
+        verify(reservationRepository, never()).save(any());
+        verify(outboxEventWriter, never()).write(any(), any(), eq(EventType.INVENTORY_RESERVED), any(), any(), any());
+        verify(outboxEventWriter).write(eq("Booking"), eq(BOOKING_ID), eq(EventType.INVENTORY_REJECTED), any(), any(), any());
     }
 
     @Test
-    void reserve_disabledResource_is_rejected() {
-        Inventory disabled = InventoryTestData.anInventory(
-                ResourceType.FLIGHT, FLIGHT_RESOURCE_ID, 10, 0, InventoryStatus.DISABLED);
+    void reserve_disabledFlight_is_rejected() {
+        FlightInventory disabled = InventoryTestData.aFlight(10, 0, InventoryStatus.DISABLED);
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
-        when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(disabled));
+        when(flightInventoryRepository.findForUpdate(FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(disabled));
 
         newService().reserve(EVENT_ID, InventoryTestData.aReserveCommand(InventoryTestData.aFlightItem(1)));
 
@@ -121,9 +180,9 @@ class InventoryServiceImplTest {
     }
 
     @Test
-    void reserve_unknownResource_is_rejected_with_zero_available() {
+    void reserve_unknownFlight_is_rejected_with_zero_available() {
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
-        when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID)).thenReturn(Optional.empty());
+        when(flightInventoryRepository.findForUpdate(FLIGHT_RESOURCE_ID)).thenReturn(Optional.empty());
 
         newService().reserve(EVENT_ID, InventoryTestData.aReserveCommand(InventoryTestData.aFlightItem(1)));
 
@@ -141,7 +200,7 @@ class InventoryServiceImplTest {
 
         newService().reserve(EVENT_ID, InventoryTestData.aReserveCommand(InventoryTestData.aFlightItem(1)));
 
-        verify(inventoryRepository, never()).findForUpdate(any(), any());
+        verify(flightInventoryRepository, never()).findForUpdate(any());
         verify(reservationRepository, never()).save(any());
         verify(consumedEventRepository, never()).save(any());
         verify(outboxEventWriter, never()).write(any(), any(), any(), any(), any(), any());
@@ -162,50 +221,43 @@ class InventoryServiceImplTest {
         verify(outboxEventWriter, never()).write(any(), any(), any(), any(), any(), any());
     }
 
-    @Test
-    void confirm_guardMismatch_already_released_is_noop() {
-        Reservation released = InventoryTestData.aFlightReservation(ReservationStatus.RELEASED);
-        when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
-        when(reservationRepository.findByBookingId(BOOKING_ID)).thenReturn(List.of(released));
-
-        newService().confirm(EVENT_ID, BOOKING_ID);
-
-        assertThat(released.getStatus()).isEqualTo(ReservationStatus.RELEASED);
-        verify(consumedEventRepository).save(any());
-    }
-
     // ── release (AC4) ────────────────────────────────────────────────────────
 
     @Test
-    void release_RESERVED_restores_availability_and_publishes_released_events() {
+    void release_flight_restores_availability_and_publishes_released_event() {
         Reservation reserved = InventoryTestData.aFlightReservation(ReservationStatus.RESERVED);
-        Inventory flight = InventoryTestData.anActiveFlight(10, 1);
+        FlightInventory flight = InventoryTestData.anActiveFlight(10, 1);
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
         when(reservationRepository.findByBookingId(BOOKING_ID)).thenReturn(List.of(reserved));
-        when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(flight));
+        when(flightInventoryRepository.findForUpdate(FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(flight));
 
         newService().release(EVENT_ID, BOOKING_ID, ConsumerEventType.BOOKING_CANCELLED,
                 InventoryTestData.CORRELATION_ID, InventoryTestData.SAGA_ID);
 
         assertThat(reserved.getStatus()).isEqualTo(ReservationStatus.RELEASED);
         assertThat(flight.getReservedCount()).isZero();
-        verify(outboxEventWriter).write(eq("Reservation"), any(), eq(EventType.FLIGHT_SEATS_RELEASED), any(), any(), any());
+        verify(outboxEventWriter).write(eq("Flight"), eq(FLIGHT_RESOURCE_ID),
+                eq(EventType.FLIGHT_SEATS_RELEASED), any(), any(), any());
         verify(outboxEventWriter).write(eq("Booking"), eq(BOOKING_ID), eq(EventType.INVENTORY_RELEASED), any(), any(), any());
     }
 
     @Test
-    void release_CONFIRMED_transitions_to_RELEASED() {
-        Reservation confirmed = InventoryTestData.aFlightReservation(ReservationStatus.CONFIRMED);
-        Inventory flight = InventoryTestData.anActiveFlight(10, 1);
+    void release_hotel_restores_every_night_and_publishes_per_night_event() {
+        HotelReservation reserved = InventoryTestData.aHotelReservation(ReservationStatus.RESERVED, 2);
+        List<RoomTypeNightAvailability> nights = InventoryTestData.stayNights(5, 2, InventoryStatus.ACTIVE);
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
-        when(reservationRepository.findByBookingId(BOOKING_ID)).thenReturn(List.of(confirmed));
-        when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(flight));
+        when(reservationRepository.findByBookingId(BOOKING_ID)).thenReturn(List.of(reserved));
+        when(roomTypeAvailabilityRepository.findForUpdateByRoomTypeIdAndStayDateIn(eq(HOTEL_RESOURCE_ID), anyList()))
+                .thenReturn(nights);
 
         newService().release(EVENT_ID, BOOKING_ID, ConsumerEventType.BOOKING_CANCELLED,
                 InventoryTestData.CORRELATION_ID, InventoryTestData.SAGA_ID);
 
-        assertThat(confirmed.getStatus()).isEqualTo(ReservationStatus.RELEASED);
-        assertThat(flight.getReservedCount()).isZero();
+        assertThat(reserved.getStatus()).isEqualTo(ReservationStatus.RELEASED);
+        assertThat(nights).allSatisfy(n -> assertThat(n.getReserved()).isZero());
+        verify(outboxEventWriter).write(eq("Hotel"), eq(HOTEL_RESOURCE_ID),
+                eq(EventType.HOTEL_ROOMS_RELEASED), any(), any(), any());
+        verify(outboxEventWriter).write(eq("Booking"), eq(BOOKING_ID), eq(EventType.INVENTORY_RELEASED), any(), any(), any());
     }
 
     @Test
@@ -224,18 +276,20 @@ class InventoryServiceImplTest {
     // ── expire (BookingExpired) ──────────────────────────────────────────────
 
     @Test
-    void expire_RESERVED_transitions_to_EXPIRED_and_restores_availability() {
-        Reservation reserved = InventoryTestData.aFlightReservation(ReservationStatus.RESERVED);
-        Inventory flight = InventoryTestData.anActiveFlight(10, 1);
+    void expire_hotel_RESERVED_transitions_to_EXPIRED_and_restores_every_night() {
+        HotelReservation reserved = InventoryTestData.aHotelReservation(ReservationStatus.RESERVED, 1);
+        List<RoomTypeNightAvailability> nights = InventoryTestData.stayNights(5, 1, InventoryStatus.ACTIVE);
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
         when(reservationRepository.findByBookingId(BOOKING_ID)).thenReturn(List.of(reserved));
-        when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(flight));
+        when(roomTypeAvailabilityRepository.findForUpdateByRoomTypeIdAndStayDateIn(eq(HOTEL_RESOURCE_ID), anyList()))
+                .thenReturn(nights);
 
         newService().expire(EVENT_ID, BOOKING_ID, InventoryTestData.CORRELATION_ID, InventoryTestData.SAGA_ID);
 
         assertThat(reserved.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
-        assertThat(flight.getReservedCount()).isZero();
-        verify(outboxEventWriter).write(eq("Reservation"), any(), eq(EventType.FLIGHT_RESERVATION_EXPIRED), any(), any(), any());
+        assertThat(nights).allSatisfy(n -> assertThat(n.getReserved()).isZero());
+        verify(outboxEventWriter).write(eq("Hotel"), eq(HOTEL_RESOURCE_ID),
+                eq(EventType.HOTEL_RESERVATION_EXPIRED), any(), any(), any());
         verify(outboxEventWriter).write(eq("Booking"), eq(BOOKING_ID), eq(EventType.INVENTORY_RELEASED), any(), any(), any());
     }
 
@@ -253,17 +307,18 @@ class InventoryServiceImplTest {
     // ── TTL sweep (AC5) ──────────────────────────────────────────────────────
 
     @Test
-    void expireReservation_RESERVED_expires_and_emits_only_resource_event() {
+    void expireReservation_flight_expires_and_emits_only_resource_event() {
         Reservation reserved = InventoryTestData.aFlightReservation(ReservationStatus.RESERVED);
-        Inventory flight = InventoryTestData.anActiveFlight(10, 1);
+        FlightInventory flight = InventoryTestData.anActiveFlight(10, 1);
         when(reservationRepository.findById(reserved.getId())).thenReturn(Optional.of(reserved));
-        when(inventoryRepository.findForUpdate(ResourceType.FLIGHT, FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(flight));
+        when(flightInventoryRepository.findForUpdate(FLIGHT_RESOURCE_ID)).thenReturn(Optional.of(flight));
 
         newService().expireReservation(reserved.getId());
 
         assertThat(reserved.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
         assertThat(flight.getReservedCount()).isZero();
-        verify(outboxEventWriter).write(eq("Reservation"), any(), eq(EventType.FLIGHT_RESERVATION_EXPIRED), any(), any(), any());
+        verify(outboxEventWriter).write(eq("Flight"), eq(FLIGHT_RESOURCE_ID),
+                eq(EventType.FLIGHT_RESERVATION_EXPIRED), any(), any(), any());
         // The TTL sweep never emits a booking-facing event.
         verify(outboxEventWriter, never()).write(eq("Booking"), any(), any(), any(), any(), any());
     }
