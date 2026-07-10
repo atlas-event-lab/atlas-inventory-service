@@ -48,6 +48,10 @@ spring:
       acks: all
       properties:
         spring.json.add.type.headers: 'false'
+        # The outbox relay dispatches a whole poll batch before flushing (ADR-0013); let the
+        # producer accumulate those sends briefly and ship them in few broker round-trips.
+        linger.ms: 20
+        batch.size: 65536
     consumer:
       group-id: inventory-service
       auto-offset-reset: earliest
