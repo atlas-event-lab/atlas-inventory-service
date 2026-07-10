@@ -36,6 +36,11 @@ spring:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/atlas}
 
+  task:
+    scheduling:
+      pool:
+        # Headroom so a long outbox drain cycle can't starve the other @Scheduled jobs.
+        size: ${SCHEDULER_POOL_SIZE:3}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     template:
@@ -65,7 +70,10 @@ spring:
 
 atlas:
   outbox:
-    poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:2000}
+    # Adaptive relay scheduling (ADR-0013): poll fast under load, back off when idle.
+    min-interval-ms: ${OUTBOX_MIN_INTERVAL_MS:250}
+    max-interval-ms: ${OUTBOX_MAX_INTERVAL_MS:5000}
+    max-drain-loops: ${OUTBOX_MAX_DRAIN_LOOPS:10}
   inventory:
     reservation:
       # Reservation Time-To-Live. The TTL sweep expires due RESERVED reservations.

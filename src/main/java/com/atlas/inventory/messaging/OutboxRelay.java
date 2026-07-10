@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,17 +31,20 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class OutboxRelay {
 
+    /** Max rows claimed per poll — mirrors the {@code LIMIT} in {@code claimBatchForPublishing}. */
+    public static final int BATCH_LIMIT = 100;
+
     private final OutboxRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    @Scheduled(fixedDelayString = "${atlas.outbox.poll-interval-ms:2000}")
     @Transactional
-    public void publishPending() {
+    public int publishPending() {
         // Claim a disjoint batch (FOR UPDATE SKIP LOCKED) so concurrent replicas never publish the
         // same row; the transaction holds the locks until each row is marked below (ADR-0013).
+        // Scheduling is driven by OutboxRelayScheduler (adaptive interval + drain-in-loop).
         List<OutboxEvent> batch = outboxRepository.claimBatchForPublishing();
         if (batch.isEmpty()) {
-            return;
+            return 0;
         }
         log.debug("Outbox relay processing {} event(s)", batch.size());
 
@@ -90,7 +92,9 @@ public class OutboxRelay {
             }
         }
 
+        // Single write-back for the whole batch instead of a save per row.
         outboxRepository.saveAll(batch);
+        return batch.size();
     }
 
     /** One dispatched send awaiting its broker acknowledgement. */
