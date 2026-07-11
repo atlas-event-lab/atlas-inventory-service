@@ -77,9 +77,14 @@ public class InventoryServiceImpl implements InventoryService {
   // Domain metrics (Micrometer → /actuator/prometheus).
   // invariant (no oversell) these expose the numbers Experiment 02 asserts. Naming: dot-notation
   // becomes atlas_inventory_*_total in Prometheus.
-  private static final String M_RESERVATIONS = "atlas.inventory.reservations"; // {result}
+  private static final String M_RESERVATIONS = "atlas.inventory.reservations";
   private static final String M_OVERSELL = "atlas.inventory.oversell.attempts";
-  private static final String M_UNITS = "atlas.inventory.units";               // {action}
+  private static final String M_UNITS = "atlas.inventory.units";
+  private static final String KEY_TAG_ACTION = "action";
+  // Duplicate deliveries skipped by the idempotency guard (existsById). At-least-once delivery
+  // means redelivery happens; this counter makes the effectively-once dedup VISIBLE instead of
+  // an invisible no-op (Experiment 03; EVT-005/EVT-008).
+  private static final String M_SKIPPED = "atlas.inventory.events.skipped";
 
   // -------------------------------------------------------------------------
   // BookingCreated — reserve (all-or-nothing across items AND nights)
@@ -89,6 +94,7 @@ public class InventoryServiceImpl implements InventoryService {
   @Transactional
   public void reserve(UUID eventId, ReserveCommand command) {
     if (consumedEventRepository.existsById(eventId)) {
+      recordDuplicateSkip(ConsumerEventType.BOOKING_CREATED);
       log.info("Skipping duplicate BookingCreated: eventId={}, bookingId={}", eventId,
           command.bookingId());
       return;
@@ -214,7 +220,7 @@ public class InventoryServiceImpl implements InventoryService {
       long version
   ) {
     reservable.inventory().reserve(reservable.item().quantity());
-    meterRegistry.counter(M_UNITS, "action", "reserved").increment(reservable.item().quantity());
+    meterRegistry.counter(M_UNITS, KEY_TAG_ACTION, "reserved").increment(reservable.item().quantity());
 
     UUID reservationId = UUID.randomUUID();
     reservationRepository.save(
@@ -246,7 +252,7 @@ public class InventoryServiceImpl implements InventoryService {
       row.reserve(reservable.item().quantity());
       nights.add(new NightAvailability(row.getStayDate(), row.getReserved()));
     }
-    meterRegistry.counter(M_UNITS, "action", "reserved").increment(reservable.item().quantity());
+    meterRegistry.counter(M_UNITS, KEY_TAG_ACTION, "reserved").increment(reservable.item().quantity());
 
     UUID reservationId = UUID.randomUUID();
     UUID hotelId = reservable.rows().getFirst().getHotelId();
@@ -277,6 +283,7 @@ public class InventoryServiceImpl implements InventoryService {
   @Transactional
   public void confirm(UUID eventId, UUID bookingId) {
     if (consumedEventRepository.existsById(eventId)) {
+      recordDuplicateSkip(ConsumerEventType.BOOKING_CONFIRMED);
       log.info("Skipping duplicate BookingConfirmed: eventId={}, bookingId={}", eventId, bookingId);
       return;
     }
@@ -307,6 +314,7 @@ public class InventoryServiceImpl implements InventoryService {
   public void release(UUID eventId, UUID bookingId, ConsumerEventType triggerEventType,
       String correlationId, String sagaId) {
     if (consumedEventRepository.existsById(eventId)) {
+      recordDuplicateSkip(triggerEventType);
       log.info("Skipping duplicate {}: eventId={}, bookingId={}", triggerEventType, eventId,
           bookingId);
       return;
@@ -346,6 +354,7 @@ public class InventoryServiceImpl implements InventoryService {
   @Transactional
   public void expire(UUID eventId, UUID bookingId, String correlationId, String sagaId) {
     if (consumedEventRepository.existsById(eventId)) {
+      recordDuplicateSkip(ConsumerEventType.BOOKING_EXPIRED);
       log.info("Skipping duplicate BookingExpired: eventId={}, bookingId={}", eventId, bookingId);
       return;
     }
@@ -423,7 +432,7 @@ public class InventoryServiceImpl implements InventoryService {
           .orElseThrow(() -> new InventoryNotFoundException(ResourceType.FLIGHT,
               reservation.getResourceId()));
       inventory.release(reservation.getQuantity());
-      meterRegistry.counter(M_UNITS, "action", "released").increment(reservation.getQuantity());
+      meterRegistry.counter(M_UNITS, KEY_TAG_ACTION, "released").increment(reservation.getQuantity());
       outboxEventWriter.write(AGGREGATE_FLIGHT, reservation.getResourceId(), eventType,
           correlationId, sagaId,
           new FlightAvailabilityPayload(reservation.getId(), reservation.getBookingId(),
@@ -443,7 +452,7 @@ public class InventoryServiceImpl implements InventoryService {
         row.release(hotel.getQuantity());
         nights.add(new NightAvailability(row.getStayDate(), row.getReserved()));
       }
-      meterRegistry.counter(M_UNITS, "action", "released").increment(hotel.getQuantity());
+      meterRegistry.counter(M_UNITS, KEY_TAG_ACTION, "released").increment(hotel.getQuantity());
       outboxEventWriter.write(AGGREGATE_HOTEL, hotel.getResourceId(), eventType,
           correlationId, sagaId,
           new HotelAvailabilityPayload(hotel.getId(), hotel.getBookingId(), hotel.getResourceId(),
@@ -454,6 +463,11 @@ public class InventoryServiceImpl implements InventoryService {
   private void recordHistory(UUID reservationId, ReservationStatus status) {
     reservationHistoryRepository.save(
         new ReservationHistory(UUID.randomUUID(), reservationId, status));
+  }
+
+  private void recordDuplicateSkip(ConsumerEventType type) {
+    meterRegistry.counter(M_SKIPPED, "reason", "duplicate", "event", type.name().toLowerCase())
+        .increment();
   }
 
   /**
