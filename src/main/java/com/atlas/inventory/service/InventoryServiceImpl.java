@@ -28,6 +28,7 @@ import com.atlas.inventory.repository.RoomTypeNightAvailabilityRepository;
 import com.atlas.inventory.scheduler.ReservationExpirationProperties;
 import com.atlas.inventory.shared.messaging.ConsumerEventType;
 import com.atlas.inventory.shared.messaging.EventType;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -71,6 +72,14 @@ public class InventoryServiceImpl implements InventoryService {
   private final OutboxEventWriter outboxEventWriter;
   private final ReservationExpirationProperties properties;
   private final java.time.Clock clock;
+  private final MeterRegistry meterRegistry;
+
+  // Domain metrics (Micrometer → /actuator/prometheus).
+  // invariant (no oversell) these expose the numbers Experiment 02 asserts. Naming: dot-notation
+  // becomes atlas_inventory_*_total in Prometheus.
+  private static final String M_RESERVATIONS = "atlas.inventory.reservations"; // {result}
+  private static final String M_OVERSELL = "atlas.inventory.oversell.attempts";
+  private static final String M_UNITS = "atlas.inventory.units";               // {action}
 
   // -------------------------------------------------------------------------
   // BookingCreated — reserve (all-or-nothing across items AND nights)
@@ -113,6 +122,7 @@ public class InventoryServiceImpl implements InventoryService {
           AGGREGATE_BOOKING, command.bookingId(), EventType.INVENTORY_REJECTED,
           command.correlationId(), command.sagaId(),
           new InventoryRejectedPayload(command.bookingId(), failedItems));
+      meterRegistry.counter(M_RESERVATIONS, "result", "rejected").increment();
       log.info("Inventory rejected: bookingId={}, failedItems={}", command.bookingId(),
           failedItems.size());
       return;
@@ -122,11 +132,21 @@ public class InventoryServiceImpl implements InventoryService {
     long version = clock.millis();
     List<ReservedItem> reservedItems = new ArrayList<>();
 
-    for (FlightReservable reservable : flightReservable) {
-      reservedItems.add(reserveFlight(reservable, command, expiresAt, version));
-    }
-    for (HotelReservable reservable : hotelReservable) {
-      reservedItems.add(reserveHotel(reservable, command, expiresAt, version));
+    try {
+      for (FlightReservable reservable : flightReservable) {
+        reservedItems.add(reserveFlight(reservable, command, expiresAt, version));
+      }
+      for (HotelReservable reservable : hotelReservable) {
+        reservedItems.add(reserveHotel(reservable, command, expiresAt, version));
+      }
+    } catch (IllegalStateException e) {
+      // Defence-in-depth guard tripped: availability was re-checked under the pessimistic lock,
+      // so this SHALL NOT happen. If it ever does, the no-oversell invariant broke — surface it
+      // as a metric (must stay 0) and let the transaction roll back.
+      meterRegistry.counter(M_OVERSELL).increment();
+      log.error("Oversell guard tripped while reserving bookingId={}: {}", command.bookingId(),
+          e.getMessage());
+      throw e;
     }
 
     // Booking-facing reserved event, keyed by bookingId.
@@ -135,6 +155,7 @@ public class InventoryServiceImpl implements InventoryService {
         command.correlationId(), command.sagaId(),
         new InventoryReservedPayload(command.bookingId(), command.total(), reservedItems));
 
+    meterRegistry.counter(M_RESERVATIONS, "result", "reserved").increment();
     log.info("Inventory reserved: bookingId={}, items={}", command.bookingId(),
         reservedItems.size());
   }
@@ -193,6 +214,7 @@ public class InventoryServiceImpl implements InventoryService {
       long version
   ) {
     reservable.inventory().reserve(reservable.item().quantity());
+    meterRegistry.counter(M_UNITS, "action", "reserved").increment(reservable.item().quantity());
 
     UUID reservationId = UUID.randomUUID();
     reservationRepository.save(
@@ -224,6 +246,7 @@ public class InventoryServiceImpl implements InventoryService {
       row.reserve(reservable.item().quantity());
       nights.add(new NightAvailability(row.getStayDate(), row.getReserved()));
     }
+    meterRegistry.counter(M_UNITS, "action", "reserved").increment(reservable.item().quantity());
 
     UUID reservationId = UUID.randomUUID();
     UUID hotelId = reservable.rows().getFirst().getHotelId();
@@ -400,6 +423,7 @@ public class InventoryServiceImpl implements InventoryService {
           .orElseThrow(() -> new InventoryNotFoundException(ResourceType.FLIGHT,
               reservation.getResourceId()));
       inventory.release(reservation.getQuantity());
+      meterRegistry.counter(M_UNITS, "action", "released").increment(reservation.getQuantity());
       outboxEventWriter.write(AGGREGATE_FLIGHT, reservation.getResourceId(), eventType,
           correlationId, sagaId,
           new FlightAvailabilityPayload(reservation.getId(), reservation.getBookingId(),
@@ -419,6 +443,7 @@ public class InventoryServiceImpl implements InventoryService {
         row.release(hotel.getQuantity());
         nights.add(new NightAvailability(row.getStayDate(), row.getReserved()));
       }
+      meterRegistry.counter(M_UNITS, "action", "released").increment(hotel.getQuantity());
       outboxEventWriter.write(AGGREGATE_HOTEL, hotel.getResourceId(), eventType,
           correlationId, sagaId,
           new HotelAvailabilityPayload(hotel.getId(), hotel.getBookingId(), hotel.getResourceId(),

@@ -20,6 +20,7 @@ import com.atlas.inventory.shared.messaging.ConsumerEventType;
 import com.atlas.inventory.shared.messaging.EventType;
 import com.atlas.inventory.inventory.support.InventoryTestData;
 import com.atlas.inventory.service.InventoryServiceImpl;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -64,7 +65,7 @@ class InventoryServiceImplTest {
         Clock clock = Clock.fixed(InventoryTestData.NOW, ZoneOffset.UTC);
         return new InventoryServiceImpl(flightInventoryRepository, roomTypeAvailabilityRepository,
                 reservationRepository, reservationHistoryRepository, consumedEventRepository,
-                outboxEventWriter, properties, clock);
+                outboxEventWriter, properties, clock, new SimpleMeterRegistry());
     }
 
     // ── reserve flight — happy path (AC1) ────────────────────────────────────
