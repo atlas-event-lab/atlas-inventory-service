@@ -193,9 +193,7 @@ public class BookingEventConsumer {
     UUID resourceId = item.resourceId();
     Integer quantity = item.quantity();
     BigDecimal amount = item.amount();
-    if (type == null || resourceId == null) {
-      throw new IllegalArgumentException("Booking item missing 'type' or 'resourceId'");
-    }
+
     ResourceType resourceType = ResourceType.valueOf(type);
     int qty = quantity == null ? 1 : quantity;
     if (resourceType == ResourceType.HOTEL) {
