@@ -1,20 +1,5 @@
 package com.atlas.inventory.inventory.scheduler;
 
-import com.atlas.inventory.entity.Reservation;
-import com.atlas.inventory.entity.ReservationStatus;
-import com.atlas.inventory.repository.ReservationRepository;
-import com.atlas.inventory.scheduler.ReservationExpirationScheduler;
-import com.atlas.inventory.service.InventoryService;
-import com.atlas.inventory.inventory.support.InventoryTestData;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.Clock;
-import java.time.ZoneOffset;
-import java.util.List;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -23,11 +8,28 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.atlas.inventory.entity.Reservation;
+import com.atlas.inventory.entity.ReservationStatus;
+import com.atlas.inventory.inventory.support.InventoryTestData;
+import com.atlas.inventory.repository.ReservationRepository;
+import com.atlas.inventory.scheduler.ReservationExpirationScheduler;
+import com.atlas.inventory.service.InventoryService;
+import java.time.Clock;
+import java.time.ZoneOffset;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
 @ExtendWith(MockitoExtension.class)
 class ReservationExpirationSchedulerTest {
 
-    @Mock ReservationRepository reservationRepository;
-    @Mock InventoryService inventoryService;
+    @Mock
+    ReservationRepository reservationRepository;
+
+    @Mock
+    InventoryService inventoryService;
 
     private ReservationExpirationScheduler newScheduler() {
         return new ReservationExpirationScheduler(
@@ -38,7 +40,7 @@ class ReservationExpirationSchedulerTest {
     void expireDueReservations_expires_each_due_RESERVED() {
         Reservation due = InventoryTestData.aFlightReservation(ReservationStatus.RESERVED);
         when(reservationRepository.findTop100ByStatusAndExpiresAtBeforeOrderByExpiresAtAsc(
-                eq(ReservationStatus.RESERVED), eq(InventoryTestData.NOW)))
+                        eq(ReservationStatus.RESERVED), eq(InventoryTestData.NOW)))
                 .thenReturn(List.of(due));
 
         newScheduler().expireDueReservations();
@@ -49,7 +51,7 @@ class ReservationExpirationSchedulerTest {
     @Test
     void expireDueReservations_noDue_doesNothing() {
         when(reservationRepository.findTop100ByStatusAndExpiresAtBeforeOrderByExpiresAtAsc(
-                eq(ReservationStatus.RESERVED), eq(InventoryTestData.NOW)))
+                        eq(ReservationStatus.RESERVED), eq(InventoryTestData.NOW)))
                 .thenReturn(List.of());
 
         newScheduler().expireDueReservations();
@@ -62,7 +64,7 @@ class ReservationExpirationSchedulerTest {
         Reservation r1 = InventoryTestData.aFlightReservation(ReservationStatus.RESERVED);
         Reservation r2 = InventoryTestData.aFlightReservation(ReservationStatus.RESERVED);
         when(reservationRepository.findTop100ByStatusAndExpiresAtBeforeOrderByExpiresAtAsc(
-                eq(ReservationStatus.RESERVED), eq(InventoryTestData.NOW)))
+                        eq(ReservationStatus.RESERVED), eq(InventoryTestData.NOW)))
                 .thenReturn(List.of(r1, r2));
         doThrow(new RuntimeException("boom")).when(inventoryService).expireReservation(r1.getId());
 

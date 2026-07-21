@@ -1,11 +1,10 @@
 package com.atlas.inventory.config;
 
 import com.atlas.inventory.scheduler.ReservationExpirationProperties;
+import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.time.Clock;
 
 /**
  * Wires the reservation TTL sweep and the hotel calendar: binds

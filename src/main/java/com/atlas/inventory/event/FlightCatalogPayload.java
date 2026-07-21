@@ -1,7 +1,6 @@
 package com.atlas.inventory.event;
 
 import jakarta.validation.constraints.NotNull;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -13,8 +12,7 @@ import java.util.UUID;
  * carried verbatim. Never carries live availability (data ownership).
  */
 public record FlightCatalogPayload(
-        @NotNull
-        UUID flightId,
+        @NotNull UUID flightId,
         String flightNumber,
         String airlineCode,
         String airlineName,
@@ -24,5 +22,4 @@ public record FlightCatalogPayload(
         Instant arrivalTime,
         int totalSeats,
         MoneyEvent basePrice,
-        List<FlightSegmentEvent> segments
-) {}
+        List<FlightSegmentEvent> segments) {}

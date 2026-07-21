@@ -6,18 +6,8 @@ import java.util.List;
 import java.util.UUID;
 
 public record BookingCreatedPayload(
-
-    @NotNull
-    UUID bookingId,
-
-    @NotNull
-    UUID userId,
-
-    @Valid
-    @NotNull
-    List<BookingItemEvent> items,
-    Integer travelers,
-
-    @NotNull
-    MoneyEvent total
-) {}
+        @NotNull UUID bookingId,
+        @NotNull UUID userId,
+        @Valid @NotNull List<BookingItemEvent> items,
+        Integer travelers,
+        @NotNull MoneyEvent total) {}

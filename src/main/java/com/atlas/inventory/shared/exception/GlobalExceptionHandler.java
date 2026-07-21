@@ -5,6 +5,7 @@ import com.atlas.inventory.exception.InventoryNotFoundException;
 import com.atlas.inventory.exception.ReservationNotFoundException;
 import com.atlas.inventory.shared.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -20,8 +21,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import java.util.List;
-
 /**
  * Translates all exceptions into RFC 7807 Problem Details responses (API-005).
  * Content type is always {@code application/problem+json}.
@@ -29,7 +28,7 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String PROBLEM_TITLE_VALIDATION_ERROR = "Validation Error";
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -40,8 +39,12 @@ public class GlobalExceptionHandler {
                 .map(e -> new FieldErrorDetail(e.getField(), e.getDefaultMessage()))
                 .toList();
 
-        ProblemDetail problem = problemOf(HttpStatus.BAD_REQUEST, "Request validation failed",
-                ProblemTypes.VALIDATION, PROBLEM_TITLE_VALIDATION_ERROR, request);
+        ProblemDetail problem = problemOf(
+                HttpStatus.BAD_REQUEST,
+                "Request validation failed",
+                ProblemTypes.VALIDATION,
+                PROBLEM_TITLE_VALIDATION_ERROR,
+                request);
         problem.setProperty("errors", errors);
 
         return respond(HttpStatus.BAD_REQUEST, problem);
@@ -51,9 +54,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleMissingHeader(
             MissingRequestHeaderException ex, HttpServletRequest request) {
 
-        ProblemDetail problem = problemOf(HttpStatus.BAD_REQUEST,
+        ProblemDetail problem = problemOf(
+                HttpStatus.BAD_REQUEST,
                 "Required header '" + ex.getHeaderName() + "' is missing",
-                ProblemTypes.VALIDATION, PROBLEM_TITLE_VALIDATION_ERROR, request);
+                ProblemTypes.VALIDATION,
+                PROBLEM_TITLE_VALIDATION_ERROR,
+                request);
 
         return respond(HttpStatus.BAD_REQUEST, problem);
     }
@@ -62,8 +68,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUnreadableBody(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
 
-        ProblemDetail problem = problemOf(HttpStatus.BAD_REQUEST, "Malformed request body",
-                ProblemTypes.VALIDATION, PROBLEM_TITLE_VALIDATION_ERROR, request);
+        ProblemDetail problem = problemOf(
+                HttpStatus.BAD_REQUEST,
+                "Malformed request body",
+                ProblemTypes.VALIDATION,
+                PROBLEM_TITLE_VALIDATION_ERROR,
+                request);
 
         return respond(HttpStatus.BAD_REQUEST, problem);
     }
@@ -72,19 +82,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleTypeMismatch(
             MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
 
-        ProblemDetail problem = problemOf(HttpStatus.BAD_REQUEST,
+        ProblemDetail problem = problemOf(
+                HttpStatus.BAD_REQUEST,
                 "Invalid value for '" + ex.getName() + "'",
-                ProblemTypes.VALIDATION, PROBLEM_TITLE_VALIDATION_ERROR, request);
+                ProblemTypes.VALIDATION,
+                PROBLEM_TITLE_VALIDATION_ERROR,
+                request);
 
         return respond(HttpStatus.BAD_REQUEST, problem);
     }
 
     @ExceptionHandler({InventoryNotFoundException.class, ReservationNotFoundException.class})
-    public ResponseEntity<ProblemDetail> handleNotFound(
-            RuntimeException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleNotFound(RuntimeException ex, HttpServletRequest request) {
 
-        ProblemDetail problem = problemOf(HttpStatus.NOT_FOUND, ex.getMessage(),
-                ProblemTypes.NOT_FOUND, "Not Found", request);
+        ProblemDetail problem =
+                problemOf(HttpStatus.NOT_FOUND, ex.getMessage(), ProblemTypes.NOT_FOUND, "Not Found", request);
 
         return respond(HttpStatus.NOT_FOUND, problem);
     }
@@ -93,8 +105,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleIllegalArgument(
             IllegalArgumentException ex, HttpServletRequest request) {
 
-        ProblemDetail problem = problemOf(HttpStatus.BAD_REQUEST, ex.getMessage(),
-                ProblemTypes.VALIDATION, PROBLEM_TITLE_VALIDATION_ERROR, request);
+        ProblemDetail problem = problemOf(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage(),
+                ProblemTypes.VALIDATION,
+                PROBLEM_TITLE_VALIDATION_ERROR,
+                request);
 
         return respond(HttpStatus.BAD_REQUEST, problem);
     }
@@ -103,35 +119,41 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleInvalidStateTransition(
             InvalidReservationStateTransitionException ex, HttpServletRequest request) {
 
-        ProblemDetail problem = problemOf(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(),
-                ProblemTypes.UNPROCESSABLE, "Invalid State Transition", request);
+        ProblemDetail problem = problemOf(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                ex.getMessage(),
+                ProblemTypes.UNPROCESSABLE,
+                "Invalid State Transition",
+                request);
 
         return respond(HttpStatus.UNPROCESSABLE_ENTITY, problem);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ProblemDetail> handleNoResource(
-            NoResourceFoundException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleNoResource(NoResourceFoundException ex, HttpServletRequest request) {
 
-        ProblemDetail problem = problemOf(HttpStatus.NOT_FOUND, "Resource not found",
-                ProblemTypes.NOT_FOUND, "Not Found", request);
+        ProblemDetail problem =
+                problemOf(HttpStatus.NOT_FOUND, "Resource not found", ProblemTypes.NOT_FOUND, "Not Found", request);
 
         return respond(HttpStatus.NOT_FOUND, problem);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleGeneric(Exception ex, HttpServletRequest request) {
-        log.error("Unexpected error processing request to {}", request.getRequestURI(), ex);
+        LOGGER.error("Unexpected error processing request to {}", request.getRequestURI(), ex);
 
-        ProblemDetail problem = problemOf(HttpStatus.INTERNAL_SERVER_ERROR,
+        ProblemDetail problem = problemOf(
+                HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred",
-                ProblemTypes.INTERNAL_ERROR, "Internal Server Error", request);
+                ProblemTypes.INTERNAL_ERROR,
+                "Internal Server Error",
+                request);
 
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, problem);
     }
 
-    private ProblemDetail problemOf(HttpStatus status, String detail,
-                                    java.net.URI type, String title, HttpServletRequest request) {
+    private ProblemDetail problemOf(
+            HttpStatus status, String detail, java.net.URI type, String title, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setType(type);
         problem.setTitle(title);

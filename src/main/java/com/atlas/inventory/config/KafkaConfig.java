@@ -45,15 +45,49 @@ public class KafkaConfig {
 
     /** Producer Topics */
     // ── Booking-facing (saga) ──
-    @Bean NewTopic inventoryBookingReservedTopic() { return topic(EventTopics.INVENTORY_BOOKING_RESERVED); }
-    @Bean NewTopic inventoryBookingRejectedTopic() { return topic(EventTopics.INVENTORY_BOOKING_REJECTED); }
-    @Bean NewTopic inventoryBookingReleasedTopic() { return topic(EventTopics.INVENTORY_BOOKING_RELEASED); }
+    @Bean
+    NewTopic inventoryBookingReservedTopic() {
+        return topic(EventTopics.INVENTORY_BOOKING_RESERVED);
+    }
+
+    @Bean
+    NewTopic inventoryBookingRejectedTopic() {
+        return topic(EventTopics.INVENTORY_BOOKING_REJECTED);
+    }
+
+    @Bean
+    NewTopic inventoryBookingReleasedTopic() {
+        return topic(EventTopics.INVENTORY_BOOKING_RELEASED);
+    }
 
     // ── Resource-facing (availability) ──
-    @Bean NewTopic inventoryFlightReservedTopic() { return topic(EventTopics.INVENTORY_FLIGHT_RESERVED); }
-    @Bean NewTopic inventoryFlightReleasedTopic() { return topic(EventTopics.INVENTORY_FLIGHT_RELEASED); }
-    @Bean NewTopic inventoryFlightExpiredTopic()  { return topic(EventTopics.INVENTORY_FLIGHT_EXPIRED); }
-    @Bean NewTopic inventoryHotelReservedTopic()  { return topic(EventTopics.INVENTORY_HOTEL_RESERVED); }
-    @Bean NewTopic inventoryHotelReleasedTopic()  { return topic(EventTopics.INVENTORY_HOTEL_RELEASED); }
-    @Bean NewTopic inventoryHotelExpiredTopic()   { return topic(EventTopics.INVENTORY_HOTEL_EXPIRED); }
+    @Bean
+    NewTopic inventoryFlightReservedTopic() {
+        return topic(EventTopics.INVENTORY_FLIGHT_RESERVED);
+    }
+
+    @Bean
+    NewTopic inventoryFlightReleasedTopic() {
+        return topic(EventTopics.INVENTORY_FLIGHT_RELEASED);
+    }
+
+    @Bean
+    NewTopic inventoryFlightExpiredTopic() {
+        return topic(EventTopics.INVENTORY_FLIGHT_EXPIRED);
+    }
+
+    @Bean
+    NewTopic inventoryHotelReservedTopic() {
+        return topic(EventTopics.INVENTORY_HOTEL_RESERVED);
+    }
+
+    @Bean
+    NewTopic inventoryHotelReleasedTopic() {
+        return topic(EventTopics.INVENTORY_HOTEL_RELEASED);
+    }
+
+    @Bean
+    NewTopic inventoryHotelExpiredTopic() {
+        return topic(EventTopics.INVENTORY_HOTEL_EXPIRED);
+    }
 }

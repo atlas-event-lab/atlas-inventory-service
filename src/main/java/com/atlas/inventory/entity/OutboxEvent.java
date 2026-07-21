@@ -8,6 +8,8 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Instant;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -16,9 +18,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
-import java.time.Instant;
-import java.util.UUID;
 
 /**
  * Transactional Outbox row (EVT-009). The full event envelope is written here in the same
@@ -73,8 +72,8 @@ public class OutboxEvent {
     @Column(name = "attempts", nullable = false)
     private int attempts;
 
-    public OutboxEvent(UUID id, String aggregateType, UUID aggregateId,
-                       EventType eventType, int eventVersion, String payload) {
+    public OutboxEvent(
+            UUID id, String aggregateType, UUID aggregateId, EventType eventType, int eventVersion, String payload) {
         this.id = id;
         this.aggregateType = aggregateType;
         this.aggregateId = aggregateId;

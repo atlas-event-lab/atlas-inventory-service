@@ -1,9 +1,8 @@
 package com.atlas.inventory.repository;
 
 import com.atlas.inventory.entity.ReservationHistory;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
  * Repository for the {@link ReservationHistory} audit trail. Accesses only local entities (DB-004).

@@ -3,7 +3,6 @@ package com.atlas.inventory.event;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-
 import java.util.List;
 import java.util.UUID;
 
@@ -14,15 +13,10 @@ import java.util.UUID;
  * live availability (data ownership).
  */
 public record HotelCatalogPayload(
-        @NotNull
-        UUID hotelId,
+        @NotNull UUID hotelId,
         String name,
         String city,
         String country,
         int rating,
-
-        @Valid
-        @NotEmpty
-        List<RoomTypeEvent> roomTypes,
-        List<String> amenities
-) {}
+        @Valid @NotEmpty List<RoomTypeEvent> roomTypes,
+        List<String> amenities) {}

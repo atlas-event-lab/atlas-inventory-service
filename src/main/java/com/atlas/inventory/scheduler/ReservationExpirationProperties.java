@@ -1,8 +1,7 @@
 package com.atlas.inventory.scheduler;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
-
 import java.time.Duration;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * Externalized configuration for the reservation TTL sweep
@@ -17,6 +16,4 @@ import java.time.Duration;
  * by the scheduler's {@code @Scheduled(fixedDelayString=...)} (same approach as OutboxRelay).
  */
 @ConfigurationProperties(prefix = "atlas.inventory.reservation")
-public record ReservationExpirationProperties(
-        Duration ttl
-) {}
+public record ReservationExpirationProperties(Duration ttl) {}

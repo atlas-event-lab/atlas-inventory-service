@@ -2,7 +2,6 @@ package com.atlas.inventory.service;
 
 import com.atlas.inventory.entity.ReservationStatus;
 import com.atlas.inventory.exception.InvalidReservationStateTransitionException;
-
 import java.util.Map;
 import java.util.Set;
 
@@ -14,13 +13,9 @@ import java.util.Set;
 public final class ReservationStateTransitionGuard {
 
     private static final Map<ReservationStatus, Set<ReservationStatus>> ALLOWED = Map.of(
-            ReservationStatus.RESERVED, Set.of(
-                    ReservationStatus.CONFIRMED,
-                    ReservationStatus.RELEASED,
-                    ReservationStatus.EXPIRED),
-            ReservationStatus.CONFIRMED, Set.of(
-                    ReservationStatus.RELEASED)
-    );
+            ReservationStatus.RESERVED,
+                    Set.of(ReservationStatus.CONFIRMED, ReservationStatus.RELEASED, ReservationStatus.EXPIRED),
+            ReservationStatus.CONFIRMED, Set.of(ReservationStatus.RELEASED));
 
     private ReservationStateTransitionGuard() {}
 

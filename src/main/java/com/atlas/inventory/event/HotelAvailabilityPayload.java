@@ -2,7 +2,6 @@ package com.atlas.inventory.event;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-
 import java.util.List;
 import java.util.UUID;
 
@@ -14,20 +13,9 @@ import java.util.UUID;
  * version. Reused by the reserved / released / expired hotel events, differentiated by topic.
  */
 public record HotelAvailabilityPayload(
-        @NotNull
-        UUID reservationId,
-
-        @NotNull
-        UUID bookingId,
-
-        @NotNull
-        UUID roomTypeId,
-
-        @NotNull
-        UUID hotelId,
-
-        @NotEmpty
-        List<NightAvailability> nights,
-        
-        long version
-) {}
+        @NotNull UUID reservationId,
+        @NotNull UUID bookingId,
+        @NotNull UUID roomTypeId,
+        @NotNull UUID hotelId,
+        @NotEmpty List<NightAvailability> nights,
+        long version) {}

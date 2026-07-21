@@ -4,14 +4,13 @@ import com.atlas.inventory.entity.Reservation;
 import com.atlas.inventory.entity.ReservationStatus;
 import com.atlas.inventory.repository.ReservationRepository;
 import com.atlas.inventory.service.InventoryService;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
-import java.time.Clock;
-import java.time.Instant;
-import java.util.List;
 
 /**
  * Reservation TTL sweep (features/reserve-inventory §Reservation Expiration). Expires due
@@ -37,8 +36,8 @@ public class ReservationExpirationScheduler {
     @Scheduled(fixedDelayString = "${atlas.inventory.reservation.sweep-interval-ms:60000}")
     public void expireDueReservations() {
         Instant now = clock.instant();
-        List<Reservation> due = reservationRepository
-                .findTop100ByStatusAndExpiresAtBeforeOrderByExpiresAtAsc(ReservationStatus.RESERVED, now);
+        List<Reservation> due = reservationRepository.findTop100ByStatusAndExpiresAtBeforeOrderByExpiresAtAsc(
+                ReservationStatus.RESERVED, now);
         if (due.isEmpty()) {
             return;
         }

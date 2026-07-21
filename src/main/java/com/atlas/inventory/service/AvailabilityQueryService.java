@@ -3,7 +3,6 @@ package com.atlas.inventory.service;
 import com.atlas.inventory.dto.FlightAvailabilityResponse;
 import com.atlas.inventory.dto.HotelAvailabilityResponse;
 import com.atlas.inventory.exception.InventoryNotFoundException;
-
 import java.time.LocalDate;
 import java.util.UUID;
 

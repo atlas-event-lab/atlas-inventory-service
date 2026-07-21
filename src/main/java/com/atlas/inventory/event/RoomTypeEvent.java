@@ -1,7 +1,6 @@
 package com.atlas.inventory.event;
 
 import jakarta.validation.constraints.NotNull;
-
 import java.util.UUID;
 
 /**
@@ -10,10 +9,4 @@ import java.util.UUID;
  * availability.
  */
 public record RoomTypeEvent(
-        @NotNull
-        UUID roomTypeId,
-        String name,
-        int totalRooms,
-        int maxOccupancy,
-        MoneyEvent pricePerNight
-) {}
+        @NotNull UUID roomTypeId, String name, int totalRooms, int maxOccupancy, MoneyEvent pricePerNight) {}

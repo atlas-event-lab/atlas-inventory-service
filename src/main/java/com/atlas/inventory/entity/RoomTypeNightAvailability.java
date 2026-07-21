@@ -7,6 +7,9 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -15,10 +18,6 @@ import lombok.ToString;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
-import java.time.Instant;
-import java.time.LocalDate;
-import java.util.UUID;
 
 /**
  * Per-night availability of a hotel room type (ADR-0008; services/inventory/service.md). One row per
@@ -76,8 +75,14 @@ public class RoomTypeNightAvailability {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public RoomTypeNightAvailability(UUID id, UUID roomTypeId, UUID hotelId, LocalDate stayDate,
-                                     int totalRooms, int reserved, InventoryStatus status) {
+    public RoomTypeNightAvailability(
+            UUID id,
+            UUID roomTypeId,
+            UUID hotelId,
+            LocalDate stayDate,
+            int totalRooms,
+            int reserved,
+            InventoryStatus status) {
         this.id = id;
         this.roomTypeId = roomTypeId;
         this.hotelId = hotelId;
@@ -108,9 +113,8 @@ public class RoomTypeNightAvailability {
      */
     public void reserve(int rooms) {
         if (!canReserve(rooms)) {
-            throw new IllegalStateException(
-                    "Cannot reserve " + rooms + " rooms of room type " + roomTypeId + " on " + stayDate
-                    + " (status=" + status + ", available=" + available() + ")");
+            throw new IllegalStateException("Cannot reserve " + rooms + " rooms of room type " + roomTypeId + " on "
+                    + stayDate + " (status=" + status + ", available=" + available() + ")");
         }
         this.reserved += rooms;
     }
@@ -125,7 +129,8 @@ public class RoomTypeNightAvailability {
         this.totalRooms = newTotalRooms;
     }
 
-    /** Withdraws this night: no new reservations; existing reservations are untouched (HotelDeleted/removed room type). */
+    /** Withdraws this night: no new reservations; existing reservations are
+     * untouched (HotelDeleted/removed room type). */
     public void disable() {
         this.status = InventoryStatus.DISABLED;
     }

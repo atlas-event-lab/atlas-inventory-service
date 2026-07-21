@@ -3,15 +3,14 @@ package com.atlas.inventory.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /**
  * A reservation of hotel rooms over a stay range (ADR-0008). Records {@code checkIn} / {@code checkOut}
@@ -31,9 +30,17 @@ public class HotelReservation extends Reservation {
     @Column(name = "check_out")
     private LocalDate checkOut;
 
-    public HotelReservation(UUID id, UUID bookingId, UUID resourceId, int quantity,
-                            ReservationStatus status, Instant expiresAt, String correlationId, String sagaId,
-                            LocalDate checkIn, LocalDate checkOut) {
+    public HotelReservation(
+            UUID id,
+            UUID bookingId,
+            UUID resourceId,
+            int quantity,
+            ReservationStatus status,
+            Instant expiresAt,
+            String correlationId,
+            String sagaId,
+            LocalDate checkIn,
+            LocalDate checkOut) {
         super(id, bookingId, resourceId, quantity, status, expiresAt, correlationId, sagaId);
         this.checkIn = checkIn;
         this.checkOut = checkOut;

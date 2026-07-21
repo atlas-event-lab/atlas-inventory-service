@@ -1,5 +1,13 @@
 package com.atlas.inventory.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.atlas.inventory.entity.FlightInventory;
 import com.atlas.inventory.entity.RoomTypeNightAvailability;
 import com.atlas.inventory.event.FlightAvailabilityPayload;
@@ -16,14 +24,6 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class InventoryAvailabilityResyncServiceTest {
 
@@ -48,22 +48,35 @@ class InventoryAvailabilityResyncServiceTest {
         RoomTypeNightAvailability night = mock(RoomTypeNightAvailability.class);
         when(night.getRoomTypeId()).thenReturn(roomTypeId);
         when(night.getHotelId()).thenReturn(hotelId);
-        when(night.getStayDate()).thenReturn(LocalDate.of(2026, 7, 21));   // future night (>= today)
+        when(night.getStayDate()).thenReturn(LocalDate.of(2026, 7, 21)); // future night (>= today)
         when(night.getReserved()).thenReturn(2);
         when(nightRepo.findAll()).thenReturn(List.of(night));
 
         ResyncResult result = service.resyncAll();
 
-        ArgumentCaptor<FlightAvailabilityPayload> flightPayload = ArgumentCaptor.forClass(FlightAvailabilityPayload.class);
-        verify(outbox).write(eq("Flight"), eq(flightId), eq(EventType.FLIGHT_SEATS_RESERVED),
-                anyString(), isNull(), flightPayload.capture());
+        ArgumentCaptor<FlightAvailabilityPayload> flightPayload =
+                ArgumentCaptor.forClass(FlightAvailabilityPayload.class);
+        verify(outbox)
+                .write(
+                        eq("Flight"),
+                        eq(flightId),
+                        eq(EventType.FLIGHT_SEATS_RESERVED),
+                        anyString(),
+                        isNull(),
+                        flightPayload.capture());
         assertThat(flightPayload.getValue().resourceId()).isEqualTo(flightId);
         assertThat(flightPayload.getValue().reserved()).isEqualTo(3);
         assertThat(flightPayload.getValue().version()).isEqualTo(clock.millis());
 
         ArgumentCaptor<HotelAvailabilityPayload> hotelPayload = ArgumentCaptor.forClass(HotelAvailabilityPayload.class);
-        verify(outbox).write(eq("Hotel"), eq(roomTypeId), eq(EventType.HOTEL_ROOMS_RESERVED),
-                anyString(), isNull(), hotelPayload.capture());
+        verify(outbox)
+                .write(
+                        eq("Hotel"),
+                        eq(roomTypeId),
+                        eq(EventType.HOTEL_ROOMS_RESERVED),
+                        anyString(),
+                        isNull(),
+                        hotelPayload.capture());
         assertThat(hotelPayload.getValue().roomTypeId()).isEqualTo(roomTypeId);
         assertThat(hotelPayload.getValue().nights()).hasSize(1);
         assertThat(hotelPayload.getValue().nights().getFirst().reserved()).isEqualTo(2);
@@ -77,7 +90,7 @@ class InventoryAvailabilityResyncServiceTest {
     void resyncAll_skipsPastNights() {
         when(flightRepo.findAll()).thenReturn(List.of());
         RoomTypeNightAvailability pastNight = mock(RoomTypeNightAvailability.class);
-        when(pastNight.getStayDate()).thenReturn(LocalDate.of(2026, 7, 19));   // before today → skipped
+        when(pastNight.getStayDate()).thenReturn(LocalDate.of(2026, 7, 19)); // before today → skipped
         when(nightRepo.findAll()).thenReturn(List.of(pastNight));
 
         ResyncResult result = service.resyncAll();

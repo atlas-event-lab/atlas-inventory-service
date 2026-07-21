@@ -10,9 +10,4 @@ import java.util.UUID;
  * produced inventory events (OBS-002, OBS-003).
  */
 public record ReserveCommand(
-        UUID bookingId,
-        String correlationId,
-        String sagaId,
-        List<RequestedItem> items,
-        BigDecimal total
-) {}
+        UUID bookingId, String correlationId, String sagaId, List<RequestedItem> items, BigDecimal total) {}

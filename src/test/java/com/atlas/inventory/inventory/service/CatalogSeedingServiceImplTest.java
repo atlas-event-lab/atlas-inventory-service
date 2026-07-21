@@ -1,31 +1,5 @@
 package com.atlas.inventory.inventory.service;
 
-import com.atlas.inventory.config.HotelCalendarProperties;
-import com.atlas.inventory.entity.FlightInventory;
-import com.atlas.inventory.entity.InventoryStatus;
-import com.atlas.inventory.entity.RoomTypeNightAvailability;
-import com.atlas.inventory.repository.ConsumedEventRepository;
-import com.atlas.inventory.repository.FlightInventoryRepository;
-import com.atlas.inventory.repository.RoomTypeNightAvailabilityRepository;
-import com.atlas.inventory.inventory.support.InventoryTestData;
-import com.atlas.inventory.service.CatalogSeedingServiceImpl;
-import com.atlas.inventory.service.RoomTypeSeed;
-import com.atlas.inventory.shared.messaging.ConsumerEventType;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-
-import java.time.Clock;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
 import static com.atlas.inventory.inventory.support.InventoryTestData.EVENT_ID;
 import static com.atlas.inventory.inventory.support.InventoryTestData.FLIGHT_ID;
 import static com.atlas.inventory.inventory.support.InventoryTestData.HOTEL_ID;
@@ -40,29 +14,59 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.atlas.inventory.config.HotelCalendarProperties;
+import com.atlas.inventory.entity.FlightInventory;
+import com.atlas.inventory.entity.InventoryStatus;
+import com.atlas.inventory.entity.RoomTypeNightAvailability;
+import com.atlas.inventory.inventory.support.InventoryTestData;
+import com.atlas.inventory.repository.ConsumedEventRepository;
+import com.atlas.inventory.repository.FlightInventoryRepository;
+import com.atlas.inventory.repository.RoomTypeNightAvailabilityRepository;
+import com.atlas.inventory.service.CatalogSeedingServiceImpl;
+import com.atlas.inventory.service.RoomTypeSeed;
+import com.atlas.inventory.shared.messaging.ConsumerEventType;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class CatalogSeedingServiceImplTest {
 
     private static final int HORIZON_DAYS = 3; // small deterministic horizon: nights TODAY, +1, +2
 
-    @Mock FlightInventoryRepository flightInventoryRepository;
-    @Mock RoomTypeNightAvailabilityRepository roomTypeAvailabilityRepository;
-    @Mock ConsumedEventRepository consumedEventRepository;
+    @Mock
+    FlightInventoryRepository flightInventoryRepository;
+
+    @Mock
+    RoomTypeNightAvailabilityRepository roomTypeAvailabilityRepository;
+
+    @Mock
+    ConsumedEventRepository consumedEventRepository;
 
     private CatalogSeedingServiceImpl newService() {
         var properties = new HotelCalendarProperties(HORIZON_DAYS, 7);
         Clock clock = Clock.fixed(InventoryTestData.NOW, ZoneOffset.UTC);
-        return new CatalogSeedingServiceImpl(flightInventoryRepository, roomTypeAvailabilityRepository,
-                consumedEventRepository, properties, clock);
+        return new CatalogSeedingServiceImpl(
+                flightInventoryRepository, roomTypeAvailabilityRepository, consumedEventRepository, properties, clock);
     }
 
-    private List<RoomTypeNightAvailability> horizonRows(java.util.UUID roomTypeId, int totalRooms,
-                                                        InventoryStatus status) {
+    private List<RoomTypeNightAvailability> horizonRows(
+            java.util.UUID roomTypeId, int totalRooms, InventoryStatus status) {
         List<RoomTypeNightAvailability> rows = new ArrayList<>();
         for (int i = 0; i < HORIZON_DAYS; i++) {
-            rows.add(new RoomTypeNightAvailability(java.util.UUID.randomUUID(), roomTypeId, HOTEL_ID,
-                    TODAY.plusDays(i), totalRooms, 0, status));
+            rows.add(new RoomTypeNightAvailability(
+                    java.util.UUID.randomUUID(), roomTypeId, HOTEL_ID, TODAY.plusDays(i), totalRooms, 0, status));
         }
         return rows;
     }
@@ -129,8 +133,12 @@ class CatalogSeedingServiceImplTest {
         when(roomTypeAvailabilityRepository.findForUpdateByHotelIdFromDate(eq(HOTEL_ID), eq(TODAY)))
                 .thenReturn(List.of());
 
-        newService().upsertHotel(EVENT_ID, ConsumerEventType.HOTEL_CREATED, HOTEL_ID,
-                List.of(new RoomTypeSeed(ROOM_TYPE_A, 20), new RoomTypeSeed(ROOM_TYPE_B, 5)));
+        newService()
+                .upsertHotel(
+                        EVENT_ID,
+                        ConsumerEventType.HOTEL_CREATED,
+                        HOTEL_ID,
+                        List.of(new RoomTypeSeed(ROOM_TYPE_A, 20), new RoomTypeSeed(ROOM_TYPE_B, 5)));
 
         // 2 room types × HORIZON_DAYS nights each.
         ArgumentCaptor<RoomTypeNightAvailability> saved = ArgumentCaptor.forClass(RoomTypeNightAvailability.class);
@@ -154,8 +162,12 @@ class CatalogSeedingServiceImplTest {
                 .thenReturn(all);
 
         // HotelUpdated now carries only room type A (B was removed), new capacity 25.
-        newService().upsertHotel(EVENT_ID, ConsumerEventType.HOTEL_UPDATED, HOTEL_ID,
-                List.of(new RoomTypeSeed(ROOM_TYPE_A, 25)));
+        newService()
+                .upsertHotel(
+                        EVENT_ID,
+                        ConsumerEventType.HOTEL_UPDATED,
+                        HOTEL_ID,
+                        List.of(new RoomTypeSeed(ROOM_TYPE_A, 25)));
 
         assertThat(roomA).allSatisfy(n -> assertThat(n.getTotalRooms()).isEqualTo(25));
         assertThat(roomA).allSatisfy(n -> assertThat(n.getStatus()).isEqualTo(InventoryStatus.ACTIVE));
@@ -167,15 +179,18 @@ class CatalogSeedingServiceImplTest {
     @Test
     void upsertHotel_update_inserts_missing_future_nights() {
         // Existing calendar only covers the first night; the rest of the horizon must be back-filled.
-        List<RoomTypeNightAvailability> partial =
-                List.of(new RoomTypeNightAvailability(java.util.UUID.randomUUID(), ROOM_TYPE_A, HOTEL_ID,
-                        TODAY, 20, 0, InventoryStatus.ACTIVE));
+        List<RoomTypeNightAvailability> partial = List.of(new RoomTypeNightAvailability(
+                java.util.UUID.randomUUID(), ROOM_TYPE_A, HOTEL_ID, TODAY, 20, 0, InventoryStatus.ACTIVE));
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(false);
         when(roomTypeAvailabilityRepository.findForUpdateByHotelIdFromDate(eq(HOTEL_ID), eq(TODAY)))
                 .thenReturn(partial);
 
-        newService().upsertHotel(EVENT_ID, ConsumerEventType.HOTEL_UPDATED, HOTEL_ID,
-                List.of(new RoomTypeSeed(ROOM_TYPE_A, 20)));
+        newService()
+                .upsertHotel(
+                        EVENT_ID,
+                        ConsumerEventType.HOTEL_UPDATED,
+                        HOTEL_ID,
+                        List.of(new RoomTypeSeed(ROOM_TYPE_A, 20)));
 
         // HORIZON_DAYS nights total, 1 already existed → 2 inserted.
         verify(roomTypeAvailabilityRepository, times(HORIZON_DAYS - 1)).save(any());
@@ -198,8 +213,12 @@ class CatalogSeedingServiceImplTest {
     void upsertHotel_duplicate_event_is_skipped() {
         when(consumedEventRepository.existsById(EVENT_ID)).thenReturn(true);
 
-        newService().upsertHotel(EVENT_ID, ConsumerEventType.HOTEL_UPDATED, HOTEL_ID,
-                List.of(new RoomTypeSeed(ROOM_TYPE_A, 25)));
+        newService()
+                .upsertHotel(
+                        EVENT_ID,
+                        ConsumerEventType.HOTEL_UPDATED,
+                        HOTEL_ID,
+                        List.of(new RoomTypeSeed(ROOM_TYPE_A, 25)));
 
         verify(roomTypeAvailabilityRepository, never()).findForUpdateByHotelIdFromDate(any(), any());
         verify(roomTypeAvailabilityRepository, never()).save(any());

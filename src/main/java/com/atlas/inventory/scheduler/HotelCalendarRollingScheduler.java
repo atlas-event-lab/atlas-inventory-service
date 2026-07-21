@@ -22,7 +22,8 @@ public class HotelCalendarRollingScheduler {
 
     private final HotelCalendarMaintenanceService maintenanceService;
 
-    @Scheduled(fixedDelayString = "${atlas.inventory.hotel.roll-interval-ms:86400000}",
+    @Scheduled(
+            fixedDelayString = "${atlas.inventory.hotel.roll-interval-ms:86400000}",
             initialDelayString = "${atlas.inventory.hotel.roll-initial-delay-ms:60000}")
     public void rollAndPurge() {
         try {

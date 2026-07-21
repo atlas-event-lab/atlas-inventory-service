@@ -42,67 +42,60 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class InventoryAvailabilityResyncService {
 
-  private static final String AGGREGATE_FLIGHT = "Flight";
-  private static final String AGGREGATE_HOTEL = "Hotel";
-  /** Synthetic reservation/booking id — resync is not tied to a reservation; Search ignores these. */
-  private static final UUID RESYNC_MARKER = new UUID(0L, 0L);
+    private static final String AGGREGATE_FLIGHT = "Flight";
+    private static final String AGGREGATE_HOTEL = "Hotel";
+    /** Synthetic reservation/booking id — resync is not tied to a reservation; Search ignores these. */
+    private static final UUID RESYNC_MARKER = new UUID(0L, 0L);
 
-  private final FlightInventoryRepository flightInventoryRepository;
-  private final RoomTypeNightAvailabilityRepository nightRepository;
-  private final OutboxEventWriter outboxEventWriter;
-  private final Clock clock;
+    private final FlightInventoryRepository flightInventoryRepository;
+    private final RoomTypeNightAvailabilityRepository nightRepository;
+    private final OutboxEventWriter outboxEventWriter;
+    private final Clock clock;
 
-  @Transactional
-  public ResyncResult resyncAll() {
-    long version = clock.millis();
-    String correlationId = "resync-" + UUID.randomUUID();
+    @Transactional
+    public ResyncResult resyncAll() {
+        long version = clock.millis();
+        String correlationId = "resync-" + UUID.randomUUID();
 
-    List<FlightInventory> flights = flightInventoryRepository.findAll();
-    for (FlightInventory flight : flights) {
-      outboxEventWriter.write(
-          AGGREGATE_FLIGHT,
-          flight.getResourceId(),
-          EventType.FLIGHT_SEATS_RESERVED,
-          correlationId,
-          null,
-          new FlightAvailabilityPayload(
-              RESYNC_MARKER, RESYNC_MARKER,
-              flight.getResourceId(),
-              flight.getReservedCount(),
-              version)
-      );
+        List<FlightInventory> flights = flightInventoryRepository.findAll();
+        for (FlightInventory flight : flights) {
+            outboxEventWriter.write(
+                    AGGREGATE_FLIGHT,
+                    flight.getResourceId(),
+                    EventType.FLIGHT_SEATS_RESERVED,
+                    correlationId,
+                    null,
+                    new FlightAvailabilityPayload(
+                            RESYNC_MARKER, RESYNC_MARKER, flight.getResourceId(), flight.getReservedCount(), version));
+        }
+
+        LocalDate today = LocalDate.now(clock);
+        Map<UUID, List<RoomTypeNightAvailability>> byRoomType = nightRepository.findAll().stream()
+                .filter(row -> !row.getStayDate().isBefore(today))
+                .collect(Collectors.groupingBy(RoomTypeNightAvailability::getRoomTypeId));
+
+        for (Map.Entry<UUID, List<RoomTypeNightAvailability>> entry : byRoomType.entrySet()) {
+            List<RoomTypeNightAvailability> rows = entry.getValue();
+            UUID hotelId = rows.getFirst().getHotelId();
+            List<NightAvailability> nights = rows.stream()
+                    .sorted(Comparator.comparing(RoomTypeNightAvailability::getStayDate))
+                    .map(row -> new NightAvailability(row.getStayDate(), row.getReserved()))
+                    .toList();
+            outboxEventWriter.write(
+                    AGGREGATE_HOTEL,
+                    entry.getKey(),
+                    EventType.HOTEL_ROOMS_RESERVED,
+                    correlationId,
+                    null,
+                    new HotelAvailabilityPayload(
+                            RESYNC_MARKER, RESYNC_MARKER, entry.getKey(), hotelId, nights, version));
+        }
+
+        log.warn(
+                "Availability resync: re-emitted {} flight + {} room-type availability events (version={})",
+                flights.size(),
+                byRoomType.size(),
+                version);
+        return new ResyncResult(flights.size(), byRoomType.size());
     }
-
-    LocalDate today = LocalDate.now(clock);
-    Map<UUID, List<RoomTypeNightAvailability>> byRoomType = nightRepository.findAll().stream()
-        .filter(row -> !row.getStayDate().isBefore(today))
-        .collect(Collectors.groupingBy(RoomTypeNightAvailability::getRoomTypeId));
-
-    for (Map.Entry<UUID, List<RoomTypeNightAvailability>> entry : byRoomType.entrySet()) {
-      List<RoomTypeNightAvailability> rows = entry.getValue();
-      UUID hotelId = rows.getFirst().getHotelId();
-      List<NightAvailability> nights = rows.stream()
-          .sorted(Comparator.comparing(RoomTypeNightAvailability::getStayDate))
-          .map(row -> new NightAvailability(row.getStayDate(), row.getReserved()))
-          .toList();
-      outboxEventWriter.write(
-          AGGREGATE_HOTEL,
-          entry.getKey(),
-          EventType.HOTEL_ROOMS_RESERVED,
-          correlationId,
-          null,
-          new HotelAvailabilityPayload(
-              RESYNC_MARKER,
-              RESYNC_MARKER,
-              entry.getKey(),
-              hotelId,
-              nights,
-              version)
-      );
-    }
-
-    log.warn("Availability resync: re-emitted {} flight + {} room-type availability events (version={})",
-        flights.size(), byRoomType.size(), version);
-    return new ResyncResult(flights.size(), byRoomType.size());
-  }
 }

@@ -3,17 +3,15 @@ package com.atlas.inventory.service;
 import com.atlas.inventory.config.HotelCalendarProperties;
 import com.atlas.inventory.entity.RoomTypeNightAvailability;
 import com.atlas.inventory.repository.RoomTypeNightAvailabilityRepository;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Clock;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Rolling maintenance of the hotel calendar (ADR-0008). Materialization is eager, so the seed already
@@ -47,8 +45,13 @@ public class HotelCalendarMaintenanceServiceImpl implements HotelCalendarMainten
                 continue;
             }
             roomTypeAvailabilityRepository.save(new RoomTypeNightAvailability(
-                    UUID.randomUUID(), row.getRoomTypeId(), row.getHotelId(), frontier,
-                    row.getTotalRooms(), 0, row.getStatus()));
+                    UUID.randomUUID(),
+                    row.getRoomTypeId(),
+                    row.getHotelId(),
+                    frontier,
+                    row.getTotalRooms(),
+                    0,
+                    row.getStatus()));
             created++;
         }
         if (created > 0) {

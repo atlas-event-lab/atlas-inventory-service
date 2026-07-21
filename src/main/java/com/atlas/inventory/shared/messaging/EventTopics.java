@@ -16,17 +16,17 @@ public final class EventTopics {
     // ── Inventory Service produces — resource-facing (availability), keyed by reservationId ──
     public static final String INVENTORY_FLIGHT_RESERVED = "inventory.flight.reserved";
     public static final String INVENTORY_FLIGHT_RELEASED = "inventory.flight.released";
-    public static final String INVENTORY_FLIGHT_EXPIRED  = "inventory.flight.expired";
-    public static final String INVENTORY_HOTEL_RESERVED  = "inventory.hotel.reserved";
-    public static final String INVENTORY_HOTEL_RELEASED  = "inventory.hotel.released";
-    public static final String INVENTORY_HOTEL_EXPIRED   = "inventory.hotel.expired";
+    public static final String INVENTORY_FLIGHT_EXPIRED = "inventory.flight.expired";
+    public static final String INVENTORY_HOTEL_RESERVED = "inventory.hotel.reserved";
+    public static final String INVENTORY_HOTEL_RELEASED = "inventory.hotel.released";
+    public static final String INVENTORY_HOTEL_EXPIRED = "inventory.hotel.expired";
 
     // ── Inventory Service consumes (owned by Booking Service) ─────────────────
-    public static final String BOOKING_CREATED   = "booking.created";
+    public static final String BOOKING_CREATED = "booking.created";
     public static final String BOOKING_CONFIRMED = "booking.confirmed";
     public static final String BOOKING_CANCELLED = "booking.cancelled";
-    public static final String BOOKING_FAILED    = "booking.failed";
-    public static final String BOOKING_EXPIRED   = "booking.expired";
+    public static final String BOOKING_FAILED = "booking.failed";
+    public static final String BOOKING_EXPIRED = "booking.expired";
 
     // ── Inventory Service consumes (owned by Flight Service) ──────────────────
     public static final String FLIGHT_CREATED = "flight.created";

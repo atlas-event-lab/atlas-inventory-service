@@ -1,7 +1,6 @@
 package com.atlas.inventory.exception;
 
 import com.atlas.inventory.entity.ResourceType;
-
 import java.util.UUID;
 
 /**

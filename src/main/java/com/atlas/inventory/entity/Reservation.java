@@ -11,6 +11,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.Table;
+import java.time.Instant;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -20,9 +22,6 @@ import lombok.ToString;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
-import java.time.Instant;
-import java.util.UUID;
 
 /**
  * A temporary lock over Inventory for one booking item (glossary; one Reservation per item).
@@ -87,8 +86,15 @@ public abstract class Reservation {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    protected Reservation(UUID id, UUID bookingId, UUID resourceId, int quantity,
-                          ReservationStatus status, Instant expiresAt, String correlationId, String sagaId) {
+    protected Reservation(
+            UUID id,
+            UUID bookingId,
+            UUID resourceId,
+            int quantity,
+            ReservationStatus status,
+            Instant expiresAt,
+            String correlationId,
+            String sagaId) {
         this.id = id;
         this.bookingId = bookingId;
         this.resourceId = resourceId;

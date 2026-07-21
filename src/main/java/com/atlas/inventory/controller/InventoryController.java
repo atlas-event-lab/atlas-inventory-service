@@ -3,6 +3,8 @@ package com.atlas.inventory.controller;
 import com.atlas.inventory.dto.FlightAvailabilityResponse;
 import com.atlas.inventory.dto.HotelAvailabilityResponse;
 import com.atlas.inventory.service.AvailabilityQueryService;
+import java.time.LocalDate;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -11,9 +13,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.time.LocalDate;
-import java.util.UUID;
 
 /**
  * Read-only availability query API (inventory.yaml; OpenAPI server {@code /api/v1}; code-first per

@@ -7,6 +7,8 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Instant;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -15,9 +17,6 @@ import lombok.ToString;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
-import java.time.Instant;
-import java.util.UUID;
 
 /**
  * Scalar availability of a flight (services/inventory/service.md; ADR-0008). A flight instance is
@@ -100,8 +99,7 @@ public class FlightInventory {
      */
     public void reserve(int quantity) {
         if (!canReserve(quantity)) {
-            throw new IllegalStateException(
-                    "Cannot reserve " + quantity + " seats of flight inventory " + id
+            throw new IllegalStateException("Cannot reserve " + quantity + " seats of flight inventory " + id
                     + " (status=" + status + ", available=" + available() + ")");
         }
         this.reservedCount += quantity;

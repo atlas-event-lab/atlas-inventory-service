@@ -13,9 +13,4 @@ import java.util.UUID;
  *                          constraint for a stay covering the whole range); {@code 0} if no nights.
  */
 public record HotelAvailabilityResponse(
-        UUID roomTypeId,
-        LocalDate from,
-        LocalDate to,
-        List<NightAvailabilityView> nights,
-        int rangeMinAvailable
-) {}
+        UUID roomTypeId, LocalDate from, LocalDate to, List<NightAvailabilityView> nights, int rangeMinAvailable) {}

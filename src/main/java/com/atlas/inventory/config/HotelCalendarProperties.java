@@ -13,7 +13,4 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *                       with {@code stayDate < today − purgeAfterDays} are deleted (recommended 7).
  */
 @ConfigurationProperties(prefix = "atlas.inventory.hotel")
-public record HotelCalendarProperties(
-        int horizonDays,
-        int purgeAfterDays
-) {}
+public record HotelCalendarProperties(int horizonDays, int purgeAfterDays) {}

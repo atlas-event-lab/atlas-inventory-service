@@ -2,15 +2,14 @@ package com.atlas.inventory.repository;
 
 import com.atlas.inventory.entity.RoomTypeNightAvailability;
 import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Repository for {@link RoomTypeNightAvailability} (per-night hotel availability, ADR-0008).
@@ -24,7 +23,8 @@ public interface RoomTypeNightAvailabilityRepository extends JpaRepository<RoomT
      * concurrent overlapping stays, state_machine.md §Concurrency). MUST run inside a transaction.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
+    @Query(
+            """
             select r from RoomTypeNightAvailability r
             where r.roomTypeId = :roomTypeId and r.stayDate in :stayDates
             order by r.stayDate asc
@@ -33,7 +33,8 @@ public interface RoomTypeNightAvailabilityRepository extends JpaRepository<RoomT
             @Param("roomTypeId") UUID roomTypeId, @Param("stayDates") Collection<LocalDate> stayDates);
 
     /** Read-only per-night availability over {@code [from, to)} for the query API (no lock). */
-    @Query("""
+    @Query(
+            """
             select r from RoomTypeNightAvailability r
             where r.roomTypeId = :roomTypeId and r.stayDate >= :from and r.stayDate < :to
             order by r.stayDate asc
@@ -47,7 +48,8 @@ public interface RoomTypeNightAvailabilityRepository extends JpaRepository<RoomT
      * path. Used by HotelCreated/HotelUpdated (upsert + reconcile) and HotelDeleted (disable).
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
+    @Query(
+            """
             select r from RoomTypeNightAvailability r
             where r.hotelId = :hotelId and r.stayDate >= :fromDate
             order by r.roomTypeId asc, r.stayDate asc

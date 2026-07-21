@@ -21,10 +21,10 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class InventoryResyncEndpoint {
 
-  private final InventoryAvailabilityResyncService resyncService;
+    private final InventoryAvailabilityResyncService resyncService;
 
-  @WriteOperation
-  public ResyncResult resync() {
-    return resyncService.resyncAll();
-  }
+    @WriteOperation
+    public ResyncResult resync() {
+        return resyncService.resyncAll();
+    }
 }

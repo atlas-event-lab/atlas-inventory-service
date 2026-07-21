@@ -1,9 +1,8 @@
 package com.atlas.inventory.repository;
 
 import com.atlas.inventory.entity.ConsumedEvent;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
  * Repository for the consumed-event idempotency store (EVT-005, EVT-008).

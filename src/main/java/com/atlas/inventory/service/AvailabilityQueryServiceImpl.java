@@ -9,13 +9,12 @@ import com.atlas.inventory.entity.RoomTypeNightAvailability;
 import com.atlas.inventory.exception.InventoryNotFoundException;
 import com.atlas.inventory.repository.FlightInventoryRepository;
 import com.atlas.inventory.repository.RoomTypeNightAvailabilityRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /** Serves the read-only availability query (inventory.yaml; ADR-0008). */
 @Service
@@ -28,7 +27,8 @@ public class AvailabilityQueryServiceImpl implements AvailabilityQueryService {
     @Override
     @Transactional(readOnly = true)
     public FlightAvailabilityResponse getFlightAvailability(UUID flightId) {
-        FlightInventory inventory = flightInventoryRepository.findByResourceId(flightId)
+        FlightInventory inventory = flightInventoryRepository
+                .findByResourceId(flightId)
                 .orElseThrow(() -> new InventoryNotFoundException(ResourceType.FLIGHT, flightId));
         return new FlightAvailabilityResponse(
                 inventory.getResourceId(),
@@ -53,7 +53,8 @@ public class AvailabilityQueryServiceImpl implements AvailabilityQueryService {
                 .map(r -> new NightAvailabilityView(
                         r.getStayDate(), r.getTotalRooms(), r.getReserved(), r.available(), r.getStatus()))
                 .toList();
-        int rangeMinAvailable = nights.stream().mapToInt(NightAvailabilityView::available).min().orElse(0);
+        int rangeMinAvailable =
+                nights.stream().mapToInt(NightAvailabilityView::available).min().orElse(0);
         return new HotelAvailabilityResponse(roomTypeId, from, to, nights, rangeMinAvailable);
     }
 }

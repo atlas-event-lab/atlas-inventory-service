@@ -1,7 +1,6 @@
 package com.atlas.inventory.event;
 
 import jakarta.validation.constraints.NotNull;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -12,14 +11,9 @@ import java.util.UUID;
  * night, {@code [checkIn, checkOut)}) and omitted for FLIGHT items.
  */
 public record BookingItemEvent(
-
-    @NotNull
-    String type,
-
-    @NotNull
-    UUID resourceId,
-    Integer quantity,
-    BigDecimal amount,
-    LocalDate checkIn,
-    LocalDate checkOut
-) {}
+        @NotNull String type,
+        @NotNull UUID resourceId,
+        Integer quantity,
+        BigDecimal amount,
+        LocalDate checkIn,
+        LocalDate checkOut) {}

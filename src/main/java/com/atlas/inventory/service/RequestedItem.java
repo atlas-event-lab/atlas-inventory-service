@@ -1,7 +1,6 @@
 package com.atlas.inventory.service;
 
 import com.atlas.inventory.entity.ResourceType;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -18,8 +17,7 @@ public record RequestedItem(
         int quantity,
         BigDecimal amount,
         LocalDate checkIn,
-        LocalDate checkOut
-) {
+        LocalDate checkOut) {
 
     /** Flight item convenience factory (no stay dates). */
     public static RequestedItem flight(UUID resourceId, int quantity, BigDecimal amount) {
@@ -27,8 +25,8 @@ public record RequestedItem(
     }
 
     /** Hotel item convenience factory (stay range). */
-    public static RequestedItem hotel(UUID resourceId, int quantity, BigDecimal amount,
-                                      LocalDate checkIn, LocalDate checkOut) {
+    public static RequestedItem hotel(
+            UUID resourceId, int quantity, BigDecimal amount, LocalDate checkIn, LocalDate checkOut) {
         return new RequestedItem(ResourceType.HOTEL, resourceId, quantity, amount, checkIn, checkOut);
     }
 

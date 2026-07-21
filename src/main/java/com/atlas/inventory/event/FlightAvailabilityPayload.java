@@ -1,7 +1,6 @@
 package com.atlas.inventory.event;
 
 import jakarta.validation.constraints.NotNull;
-
 import java.util.UUID;
 
 /**
@@ -12,14 +11,4 @@ import java.util.UUID;
  * Reused by the reserved / released / expired flight events, differentiated by topic.
  */
 public record FlightAvailabilityPayload(
-        @NotNull
-        UUID reservationId,
-
-        @NotNull
-        UUID bookingId,
-
-        @NotNull
-        UUID resourceId,
-        int reserved,
-        long version
-) {}
+        @NotNull UUID reservationId, @NotNull UUID bookingId, @NotNull UUID resourceId, int reserved, long version) {}

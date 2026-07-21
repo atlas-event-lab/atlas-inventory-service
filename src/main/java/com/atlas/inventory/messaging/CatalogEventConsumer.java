@@ -1,5 +1,6 @@
 package com.atlas.inventory.messaging;
 
+import com.atlas.inventory.event.EventEnvelope;
 import com.atlas.inventory.event.EventValidator;
 import com.atlas.inventory.event.FlightCatalogPayload;
 import com.atlas.inventory.event.FlightDeletedPayload;
@@ -8,9 +9,10 @@ import com.atlas.inventory.event.HotelDeletedPayload;
 import com.atlas.inventory.service.CatalogSeedingService;
 import com.atlas.inventory.service.RoomTypeSeed;
 import com.atlas.inventory.shared.messaging.ConsumerEventType;
-import com.atlas.inventory.event.EventEnvelope;
 import com.atlas.inventory.shared.messaging.EventTopics;
 import jakarta.validation.ConstraintViolationException;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -18,9 +20,6 @@ import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Kafka consumer that seeds Inventory from the Flight/Hotel catalogs
@@ -51,8 +50,7 @@ public class CatalogEventConsumer {
             dltTopicSuffix = ".dlq",
             dltStrategy = DltStrategy.FAIL_ON_ERROR,
             autoStartDltHandler = "false",
-            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
-    )
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class})
     @KafkaListener(topics = EventTopics.FLIGHT_CREATED, groupId = "${spring.kafka.consumer.group-id}")
     public void onFlightCreated(EventEnvelope<FlightCatalogPayload> envelope) {
         upsertFlight(envelope, ConsumerEventType.FLIGHT_CREATED);
@@ -64,8 +62,7 @@ public class CatalogEventConsumer {
             dltTopicSuffix = ".dlq",
             dltStrategy = DltStrategy.FAIL_ON_ERROR,
             autoStartDltHandler = "false",
-            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
-    )
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class})
     @KafkaListener(topics = EventTopics.FLIGHT_UPDATED, groupId = "${spring.kafka.consumer.group-id}")
     public void onFlightUpdated(EventEnvelope<FlightCatalogPayload> envelope) {
         upsertFlight(envelope, ConsumerEventType.FLIGHT_UPDATED);
@@ -77,8 +74,7 @@ public class CatalogEventConsumer {
             dltTopicSuffix = ".dlq",
             dltStrategy = DltStrategy.FAIL_ON_ERROR,
             autoStartDltHandler = "false",
-            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
-    )
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class})
     @KafkaListener(topics = EventTopics.FLIGHT_DELETED, groupId = "${spring.kafka.consumer.group-id}")
     public void onFlightDeleted(EventEnvelope<FlightDeletedPayload> envelope) {
         eventValidator.validate(envelope);
@@ -96,8 +92,7 @@ public class CatalogEventConsumer {
             dltTopicSuffix = ".dlq",
             dltStrategy = DltStrategy.FAIL_ON_ERROR,
             autoStartDltHandler = "false",
-            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
-    )
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class})
     @KafkaListener(topics = EventTopics.HOTEL_CREATED, groupId = "${spring.kafka.consumer.group-id}")
     public void onHotelCreated(EventEnvelope<HotelCatalogPayload> envelope) {
         upsertHotel(envelope, ConsumerEventType.HOTEL_CREATED);
@@ -109,8 +104,7 @@ public class CatalogEventConsumer {
             dltTopicSuffix = ".dlq",
             dltStrategy = DltStrategy.FAIL_ON_ERROR,
             autoStartDltHandler = "false",
-            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
-    )
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class})
     @KafkaListener(topics = EventTopics.HOTEL_UPDATED, groupId = "${spring.kafka.consumer.group-id}")
     public void onHotelUpdated(EventEnvelope<HotelCatalogPayload> envelope) {
         upsertHotel(envelope, ConsumerEventType.HOTEL_UPDATED);
@@ -122,8 +116,7 @@ public class CatalogEventConsumer {
             dltTopicSuffix = ".dlq",
             dltStrategy = DltStrategy.FAIL_ON_ERROR,
             autoStartDltHandler = "false",
-            exclude = {IllegalArgumentException.class, ConstraintViolationException.class}
-    )
+            exclude = {IllegalArgumentException.class, ConstraintViolationException.class})
     @KafkaListener(topics = EventTopics.HOTEL_DELETED, groupId = "${spring.kafka.consumer.group-id}")
     public void onHotelDeleted(EventEnvelope<HotelDeletedPayload> envelope) {
         eventValidator.validate(envelope);
